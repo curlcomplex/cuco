@@ -610,20 +610,43 @@ local function loop()
     for id,data in pairs(s.data) do
       if (targetMode == 1 and data.type == "track") or (targetMode == 2 and data.type == "take") then
         local label = (data.type == "track") and GetTrackName(data.source) or GetTakeLabel(data.source, data.item)
-        if reaper.ImGui_TreeNode(ctx, label) then
+        -- ##id suffix gives ImGui a stable unique ID independent of label text,
+        -- so duplicate or empty labels can't cause "conflicting ID" errors.
+        if reaper.ImGui_TreeNode(ctx, label .. "##" .. id) then
+          local fxCount = (data.type == 'track') and reaper.TrackFX_GetCount(data.source)
+                                                  or reaper.TakeFX_GetCount(data.source)
           for fxIdx,params in pairs(data.fx) do
-            local fxName = (data.type=='track')
-              and select(2, reaper.TrackFX_GetFXName(data.source, fxIdx, "")) 
-              or select(2, reaper.TakeFX_GetFXName(data.source, fxIdx, "")) 
-            fxName = StripGUIDfromFXName(fxName)
-            if reaper.ImGui_TreeNode(ctx, fxName) then
+            local fxExists = fxIdx < fxCount
+            local fxName
+            if fxExists then
+              fxName = (data.type=='track')
+                and select(2, reaper.TrackFX_GetFXName(data.source, fxIdx, ""))
+                or  select(2, reaper.TakeFX_GetFXName(data.source, fxIdx, ""))
+              fxName = StripGUIDfromFXName(fxName)
+              if fxName == "" then fxName = "FX " .. fxIdx end
+            else
+              fxName = string.format("FX %d (removed)", fxIdx)
+            end
+            if reaper.ImGui_TreeNode(ctx, fxName .. "##fx" .. fxIdx) then
+              local maxP = fxExists and ((data.type=='track')
+                and reaper.TrackFX_GetNumParams(data.source, fxIdx)
+                or  reaper.TakeFX_GetNumParams(data.source, fxIdx)) or 0
               for pIdx,val in pairs(params) do
-                local pName = (data.type=='track')
-                  and select(2, reaper.TrackFX_GetParamName(data.source,fxIdx,pIdx,""))
-                  or select(2, reaper.TakeFX_GetParamName(data.source,fxIdx,pIdx,""))
+                local pExists = pIdx < maxP
+                local pName
+                if pExists then
+                  pName = (data.type=='track')
+                    and select(2, reaper.TrackFX_GetParamName(data.source,fxIdx,pIdx,""))
+                    or  select(2, reaper.TakeFX_GetParamName(data.source,fxIdx,pIdx,""))
+                  if pName == "" then pName = "Param " .. pIdx end
+                else
+                  pName = string.format("Param %d (removed)", pIdx)
+                end
                 local key  = id..'.'..fxIdx..'.'..pIdx
                 local flag = s.checked[id].fx[fxIdx][pIdx]
-                local ch3, nf = reaper.ImGui_Checkbox(ctx, key, flag)
+                -- "##key" makes the checkbox label invisible but ID-unique,
+                -- so we get a clean checkbox + readable text via SameLine.
+                local ch3, nf = reaper.ImGui_Checkbox(ctx, "##" .. key, flag)
                 if ch3 then s.checked[id].fx[fxIdx][pIdx] = nf; saveSnapshots() end
                 reaper.ImGui_SameLine(ctx)
                 reaper.ImGui_Text(ctx, string.format('%s: %.3f', pName, val))

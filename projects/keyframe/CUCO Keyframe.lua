@@ -1,10 +1,26 @@
 --[[
-ReaScript Name: CUCO Keyframe
-Author: ChatGPT / curl-enhanced
-Version: 0.5.1
-Description: Safe recall/edit: Envelope bypass via actions, recall cancel resets on selection, normalized params, robust pointer checks, undo-safe, correct envelope scaling when writing.
-Dependencies: ReaImGui (ImGui for Reaper)
+@description CUCO Keyframe — snapshot and recall FX parameter states with envelope writing
+@author      felixtatic
+@version     0.6.0
+@about
+  Capture FX parameter states across selected tracks (or take FX on items),
+  recall them safely with envelope bypass, and write them as automation
+  envelope points — at the cursor, or across a time selection.
+
+  Per-parameter checkboxes scope what gets recalled/written. Recall is a
+  two-stage preview: first click overrides envelopes and applies the
+  snapshot, second click cancels. Selection changes auto-cancel.
+
+  Snapshots persist per-project (saved into the .rpp via project ExtState),
+  so they survive REAPER restarts.
+
+@dependencies ReaImGui
+@license      MIT
 ]]--
+
+local SCRIPT_VERSION = "0.6.0"
+local EXT_SECTION    = "CUCO_Keyframe"
+local EXT_KEY        = "snapshots"
 
 -------------------------------------
 -- State & Settings
@@ -50,6 +66,131 @@ local function GetSourceGUID(source)
     return select(2, reaper.GetSetMediaItemInfo_String(source, "GUID", "", false))
   else
     return select(2, reaper.GetSetMediaTrackInfo_String(source, "GUID", "", false))
+  end
+end
+
+-------------------------------------
+-- Persistence: serialize / deserialize / GUID resolution
+-------------------------------------
+-- Lua source serializer. Skips userdata/functions (e.g. raw REAPER pointers),
+-- which is what lets us strip MediaTrack* / MediaItem_Take* fields safely.
+local function serialize(v)
+  local t = type(v)
+  if t == "nil"     then return "nil" end
+  if t == "boolean" then return tostring(v) end
+  if t == "number"  then return string.format("%.17g", v) end
+  if t == "string"  then return string.format("%q", v) end
+  if t == "table" then
+    local parts = {}
+    for k, val in pairs(v) do
+      local sval = serialize(val)
+      if sval ~= "nil" then -- skip pointer fields entirely
+        local key
+        if type(k) == "number" then
+          key = "[" .. k .. "]"
+        elseif type(k) == "string" then
+          key = "[" .. string.format("%q", k) .. "]"
+        else
+          key = nil -- skip unsupported key types
+        end
+        if key then parts[#parts + 1] = key .. "=" .. sval end
+      end
+    end
+    return "{" .. table.concat(parts, ",") .. "}"
+  end
+  return "nil"
+end
+
+local function deserialize(s)
+  if not s or s == "" then return nil end
+  local fn = load("return " .. s, "snapshots", "t", {}) -- empty env: no globals
+  if not fn then return nil end
+  local ok, result = pcall(fn)
+  return ok and result or nil
+end
+
+local function findTrackByGUID(guid)
+  for i = 0, reaper.CountTracks(0) - 1 do
+    local tr = reaper.GetTrack(0, i)
+    if tr then
+      local _, g = reaper.GetSetMediaTrackInfo_String(tr, "GUID", "", false)
+      if g == guid then return tr end
+    end
+  end
+  return nil
+end
+
+local function findItemByGUID(guid)
+  for i = 0, reaper.CountMediaItems(0) - 1 do
+    local it = reaper.GetMediaItem(0, i)
+    if it then
+      local _, g = reaper.GetSetMediaItemInfo_String(it, "GUID", "", false)
+      if g == guid then return it end
+    end
+  end
+  return nil
+end
+
+-- Strip pointer fields from a snapshot list so it can be serialized.
+local function snapshotsToSerializable(snaps)
+  local out = {}
+  for i, snap in ipairs(snaps) do
+    local data_clean = {}
+    for id, d in pairs(snap.data) do
+      data_clean[id] = { type = d.type, fx = d.fx } -- drop source/item
+    end
+    out[i] = {
+      name    = snap.name,
+      time    = snap.time,
+      type    = snap.type,
+      data    = data_clean,
+      checked = snap.checked,
+    }
+  end
+  return out
+end
+
+-- Walk loaded snapshot data and re-bind GUIDs to live track/take pointers.
+-- Drops entries whose tracks/items no longer exist in this project.
+local function rehydrateSnapshots(loaded)
+  local out = {}
+  for i, snap in ipairs(loaded) do
+    local data = {}
+    for id, d in pairs(snap.data or {}) do
+      if d.type == "track" then
+        local tr = findTrackByGUID(id)
+        if tr then data[id] = { type = "track", source = tr, fx = d.fx } end
+      elseif d.type == "take" then
+        local it = findItemByGUID(id)
+        local take = it and reaper.GetActiveTake(it) or nil
+        if it and take then
+          data[id] = { type = "take", source = take, item = it, fx = d.fx }
+        end
+      end
+    end
+    out[i] = {
+      name    = snap.name or "(unnamed)",
+      time    = snap.time or 0,
+      type    = snap.type or "track",
+      data    = data,
+      checked = snap.checked or {},
+    }
+  end
+  return out
+end
+
+local function saveSnapshots()
+  local s = serialize(snapshotsToSerializable(snapshots))
+  reaper.SetProjExtState(0, EXT_SECTION, EXT_KEY, s)
+end
+
+local function loadSnapshots()
+  local _, s = reaper.GetProjExtState(0, EXT_SECTION, EXT_KEY)
+  if not s or s == "" then return end
+  local loaded = deserialize(s)
+  if type(loaded) == "table" then
+    snapshots = rehydrateSnapshots(loaded)
+    activeSnap = math.min(activeSnap, #snapshots)
   end
 end
 
@@ -197,12 +338,14 @@ local function HoldSnapshot()
     type    = snapType
   }
   activeSnap = #snapshots
+  saveSnapshots()
 end
 
 local function DeleteSnapshot()
   if activeSnap > 0 then
     table.remove(snapshots, activeSnap)
     activeSnap = math.min(activeSnap, #snapshots)
+    saveSnapshots()
   end
 end
 
@@ -213,6 +356,7 @@ local function OverwriteSnapshot()
   local snap = snapshots[activeSnap]
   snap.data = held
   snap.checked = cloneChecked(held)
+  saveSnapshots()
 end
 
 -------------------------------------
@@ -284,8 +428,12 @@ local function WriteAutomation()
     and ((data.type == "track" and reaper.ValidatePtr(data.source, "MediaTrack*"))
       or (data.type == "take"  and reaper.ValidatePtr(data.source, "MediaItem_Take*"))) then
       for fxIdx,params in pairs(data.fx) do
+        local maxP = (data.type=='track') and reaper.TrackFX_GetNumParams(data.source, fxIdx)
+                                          or  reaper.TakeFX_GetNumParams (data.source, fxIdx)
         for pIdx,val in pairs(params) do
-          if snap.checked[id].fx[fxIdx][pIdx] then
+          if maxP and pIdx < maxP
+             and snap.checked[id] and snap.checked[id].fx[fxIdx]
+             and snap.checked[id].fx[fxIdx][pIdx] then
             local env = EnsureEnvelope(data, fxIdx, pIdx)
             if env then
               if writeMode==2 and replaceMode then DeleteRange(env, t0, t1) end
@@ -346,7 +494,7 @@ end
 
 local function loop()
   reaper.ImGui_SetNextWindowSize(ctx, 520, 650, reaper.ImGui_Cond_FirstUseEver())
-  local visible = reaper.ImGui_Begin(ctx, 'CUCO Keyframe 0.5.1', true)
+  local visible = reaper.ImGui_Begin(ctx, 'CUCO Keyframe ' .. SCRIPT_VERSION, true)
 
   if not visible then
     reaper.ImGui_End(ctx)
@@ -449,7 +597,7 @@ local function loop()
     local s = snapshots[activeSnap]
     reaper.ImGui_Text(ctx, 'Name:')
     local ch2, nm = reaper.ImGui_InputText(ctx, '##name', s.name or "", 256)
-    if ch2 then s.name = nm end
+    if ch2 then s.name = nm; saveSnapshots() end
     reaper.ImGui_SameLine(ctx)
     reaper.ImGui_Text(ctx, string.format('@ %.3f', s.time or 0))
   end
@@ -476,7 +624,7 @@ local function loop()
                 local key  = id..'.'..fxIdx..'.'..pIdx
                 local flag = s.checked[id].fx[fxIdx][pIdx]
                 local ch3, nf = reaper.ImGui_Checkbox(ctx, key, flag)
-                if ch3 then s.checked[id].fx[fxIdx][pIdx] = nf end
+                if ch3 then s.checked[id].fx[fxIdx][pIdx] = nf; saveSnapshots() end
                 reaper.ImGui_SameLine(ctx)
                 reaper.ImGui_Text(ctx, string.format('%s: %.3f', pName, val))
               end
@@ -495,4 +643,5 @@ local function loop()
   reaper.defer(loop)
 end
 
+loadSnapshots()
 reaper.defer(loop)

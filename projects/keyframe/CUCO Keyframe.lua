@@ -553,14 +553,12 @@ end
 
 local function loop()
   reaper.ImGui_SetNextWindowSize(ctx, 520, 650, reaper.ImGui_Cond_FirstUseEver())
-  local visible = reaper.ImGui_Begin(ctx, 'CUCO Keyframe ' .. SCRIPT_VERSION, true)
+  -- Modern ReaImGui contract: End() must ALWAYS be called after Begin(),
+  -- regardless of visibility. The second return is the close-button state;
+  -- when the user clicks X, `open` becomes false and we stop the defer loop.
+  local visible, open = reaper.ImGui_Begin(ctx, 'CUCO Keyframe ' .. SCRIPT_VERSION, true)
 
-  if not visible then
-    reaper.ImGui_End(ctx)
-    reaper.ImGui_DestroyContext(ctx)
-    return
-  end
-
+  if visible then
   -- Auto-cancel if user changed selection mid-stage
   local h = selHash()
   if h ~= prevSelHash then
@@ -800,8 +798,10 @@ local function loop()
     reaper.ImGui_Text(ctx, '(No snapshots yet)')
   end
 
+  end -- if visible
+
   reaper.ImGui_End(ctx)
-  reaper.defer(loop)
+  if open then reaper.defer(loop) end
 end
 
 loadSnapshots()

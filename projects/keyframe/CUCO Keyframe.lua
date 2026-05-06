@@ -359,6 +359,53 @@ local function OverwriteSnapshot()
   saveSnapshots()
 end
 
+-- Drop entries from the active snapshot that point at tracks, items, FX, or
+-- params that no longer exist. Setting keys to nil during pairs() is safe in
+-- Lua so long as we don't add new keys, which we don't.
+local function PruneSnapshot()
+  if activeSnap < 1 or not snapshots[activeSnap] then return 0 end
+  local snap = snapshots[activeSnap]
+  local removed = 0
+
+  for id, data in pairs(snap.data) do
+    local srcOk = (data.type == "track" and reaper.ValidatePtr(data.source, "MediaTrack*"))
+               or (data.type == "take"  and reaper.ValidatePtr(data.source, "MediaItem_Take*"))
+    if not srcOk then
+      snap.data[id] = nil
+      if snap.checked then snap.checked[id] = nil end
+      removed = removed + 1
+    else
+      local fxCount = (data.type == 'track') and reaper.TrackFX_GetCount(data.source)
+                                              or reaper.TakeFX_GetCount(data.source)
+      for fxIdx, params in pairs(data.fx) do
+        if fxIdx >= fxCount then
+          data.fx[fxIdx] = nil
+          if snap.checked[id] and snap.checked[id].fx then
+            snap.checked[id].fx[fxIdx] = nil
+          end
+          removed = removed + 1
+        else
+          local maxP = (data.type == 'track')
+            and reaper.TrackFX_GetNumParams(data.source, fxIdx)
+            or  reaper.TakeFX_GetNumParams(data.source, fxIdx)
+          for pIdx in pairs(params) do
+            if pIdx >= maxP then
+              params[pIdx] = nil
+              if snap.checked[id] and snap.checked[id].fx and snap.checked[id].fx[fxIdx] then
+                snap.checked[id].fx[fxIdx][pIdx] = nil
+              end
+              removed = removed + 1
+            end
+          end
+        end
+      end
+    end
+  end
+
+  if removed > 0 then saveSnapshots() end
+  return removed
+end
+
 -------------------------------------
 -- Edit Mode
 -------------------------------------
@@ -560,6 +607,8 @@ local function loop()
   if reaper.ImGui_Button(ctx, 'Overwrite') then OverwriteSnapshot() end
   reaper.ImGui_SameLine(ctx)
   if reaper.ImGui_Button(ctx, 'Delete') then DeleteSnapshot() end
+  reaper.ImGui_SameLine(ctx)
+  if reaper.ImGui_Button(ctx, 'Prune stale') then PruneSnapshot() end
 
   local windowWidth = reaper.ImGui_GetWindowWidth(ctx)
   reaper.ImGui_SetCursorPosX(ctx, windowWidth - 110)

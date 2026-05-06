@@ -35,6 +35,14 @@ local recall_respects_checks = true
 local recall_staged = false
 local in_edit_mode  = false
 
+-- Transient status line shown under the action buttons; auto-clears after a few seconds.
+local status_msg   = ""
+local status_until = 0
+local function setStatus(msg, duration)
+  status_msg   = msg or ""
+  status_until = reaper.time_precise() + (duration or 3.0)
+end
+
 -------------------------------------
 -- Helpers: Names & GUIDs
 -------------------------------------
@@ -608,13 +616,22 @@ local function loop()
   reaper.ImGui_SameLine(ctx)
   if reaper.ImGui_Button(ctx, 'Delete') then DeleteSnapshot() end
   reaper.ImGui_SameLine(ctx)
-  if reaper.ImGui_Button(ctx, 'Prune stale') then PruneSnapshot() end
+  if reaper.ImGui_Button(ctx, 'Prune stale') then
+    local n = PruneSnapshot()
+    setStatus(n > 0 and string.format("Pruned %d stale entr%s", n, n == 1 and "y" or "ies")
+                     or "Nothing to prune")
+  end
 
   local windowWidth = reaper.ImGui_GetWindowWidth(ctx)
   reaper.ImGui_SetCursorPosX(ctx, windowWidth - 110)
   reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0x00CC44FF)
   if reaper.ImGui_Button(ctx, 'Write', 100, 0) then WriteAutomation() end
   reaper.ImGui_PopStyleColor(ctx)
+
+  -- Transient status line (muted gray); fades out by simply not rendering after timeout.
+  if status_msg ~= "" and reaper.time_precise() < status_until then
+    reaper.ImGui_TextColored(ctx, 0xAAAAAAFF, status_msg)
+  end
 
   reaper.ImGui_Separator(ctx)
 

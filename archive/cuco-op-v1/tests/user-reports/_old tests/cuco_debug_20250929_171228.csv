@@ -1,0 +1,10 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 17:12:28
+# Notation:
+# ~16
+# melody = [c4 d4 e4 f4]*8 !env(velocity, adsr, 0.2, 0.5,1,0.7
+# ch1 = melody
+#
+# Event Data:
+event_id,pitch,start_beat,end_beat,velocity,channel
+# No events generated

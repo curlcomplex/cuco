@@ -1,0 +1,11 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-30 11:34:42
+# Notation:
+# ~16
+# ch1 = [c4 _ d4 _ _ c4 . . ]
+#
+# Event Data:
+event_id,pitch,start_beat,end_beat,velocity,channel
+1,60,0.000000,0.500000,96,1
+2,62,0.500000,1.250000,96,1
+3,60,1.250000,1.500000,96,1

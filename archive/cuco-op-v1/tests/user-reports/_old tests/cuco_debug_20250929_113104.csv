@@ -1,0 +1,11 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 11:31:04
+# ERROR: ...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:307: attempt to index a number value (local 'pitch')
+# Notation:
+# ~16
+# test = [c4.maj7]
+# ch1 = test
+#
+# No events generated due to error
+error,message
+1,"...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:307: attempt to index a number value (local 'pitch')"

@@ -1,0 +1,17 @@
+# REAPER Lua project ignores
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp
+*.log
+*.old
+*.swp
+
+# Build artifacts
+/build/
+/dist/
+
+# Local tooling
+/.idea/
+/.vscode/
+!.vscode/settings.json

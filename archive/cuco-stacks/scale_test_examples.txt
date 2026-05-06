@@ -1,0 +1,57 @@
+CUCO-Stacks Scale System Examples
+
+Test these syntax patterns in MIDI take names (they all start with ~):
+
+// Basic scale specification in header
+~4 @c.major [c d e f g a b c+1]        // C major scale - should pass through unchanged
+~8 @g.minor [c d e f g a b c+1]        // G minor scale - should quantize C major to G minor
+~4 @f#.blues [c e g bb d+1 f+1]        // F# blues scale
+
+// Different quantization modes
+~4 @d.major.up [c# d# f# g# a#]         // Round chromatic notes up to D major scale tones
+~4 @d.major.down [c# d# f# g# a#]       // Round chromatic notes down to D major scale tones
+~4 @d.major.near [c# d# f# g# a#]       // Round chromatic notes to nearest D major scale tones
+~4 @d.major.ignore [c# d# f# g# a#]     // Skip notes not in D major scale
+
+// Exotic scales
+~4 @a.japanese [c d e f g a b c+1]      // Japanese hirajoshi scale
+~8 @e.maqam_hijaz [c d e f g a b c+1]   // Middle Eastern hijaz maqam
+~4 @g.raga_malkauns [c d e f g a b]     // Indian classical malkauns raga
+~16 @f.hungarian [c d e f g a b c+1]    // Hungarian minor scale
+~4 @bb.whole_tone [c d e f g a b]       // Whole tone scale
+~8 @c.diminished [c d e f g a b c+1]    // Diminished/octatonic scale
+
+// Pentatonic scales
+~4 @d.pentatonic [c d e g a c+1]        // Major pentatonic 
+~8 @a.pentmin [c e g a c+1]             // Minor pentatonic
+~4 @g.chinese [c d f g a c+1]           // Chinese pentatonic
+
+// African and world scales
+~4 @e.ethiopian [c d e f g a b]         // Ethiopian tezeta scale
+~8 @c.pygmy [c e g a c+1]               // Central African pygmy scale
+~4 @f.west_african [c d e f g a b]      // West African heptatonic
+
+// European folk scales
+~4 @d.gypsy [c d e f g a b c+1]         // Romani/Hungarian gypsy scale
+~8 @g.flamenco [c d e f g a b]          // Spanish flamenco scale
+~4 @a.ukrainian [c d e f g a b]         // Ukrainian dorian
+
+// Mixed chromatic input to test quantization
+~4 @c.major [c c# d d# e f f# g g# a a# b c+1]  // All chromatic notes to major scale
+~8 @f.blues [c c# d d# e f f# g g# a a# b c+1] // All chromatic notes to blues scale
+
+// With debug flags to see scale info
+~4 @eb.dorian [c d e f g a b c+1] //debug
+~8 @b.lydian [c d e f g a b c+1] //debug //notes
+
+// Scale with loop syntax
+~4 @a.minor |[c e g] [d f a] [e g b]|3
+
+// Scale with arp processors
+~8 @d.pentatonic [c e g a c+1]!arp(up, 8)
+
+These examples demonstrate:
+- Basic scale specification: @root.scale or @root.scale.quantize
+- All quantization modes: up, down, near, ignore
+- Wide variety of world scales
+- Combination with existing features (loops, processors, debug)

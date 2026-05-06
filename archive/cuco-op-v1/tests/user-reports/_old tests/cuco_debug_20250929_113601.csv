@@ -1,0 +1,13 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 11:36:01
+# Notation:
+# ~16
+# melody = [c4 d4 e4 f4] !vel(linear,60,120)
+# ch1 = melody
+#
+# Event Data:
+event_id,pitch,start_beat,end_beat,velocity,channel
+1,60,0.000000,0.250000,60,1
+2,62,0.250000,0.500000,80,1
+3,64,0.500000,0.750000,100,1
+4,65,0.750000,1.000000,120,1

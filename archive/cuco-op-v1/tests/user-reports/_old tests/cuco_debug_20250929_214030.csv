@@ -1,0 +1,16 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 21:40:30
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got chord_open
+# Notation:
+# @seed(12345)
+# ~16 @c.major
+# uniform_test = [c4 d4 e4 f4] !rand(uniform, velocity, min=60, max=100)
+# ch1 = uniform_test
+# normal_test = [c5 d5 e5 f5] !rand(normal, velocity, mean=80, std=10)
+# ch2 = normal_test
+# human_test = [c3 d3 e3 f3] !human(ms=5, vel=8, pct=100)
+# ch3 = human_test
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got chord_open"

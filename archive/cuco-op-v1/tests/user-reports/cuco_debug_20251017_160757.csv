@@ -1,0 +1,11 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-10-17 16:07:57
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:322: Unexpected token: chord_id
+# Notation:
+# ~16
+# test = [c3.min7]
+# ch1 = test
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:322: Unexpected token: chord_id"

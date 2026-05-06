@@ -1,0 +1,1383 @@
+--[[
+ReaScript Name: CUCO Stacks — v0.0.0
+Author: curl + ChatGPT
+
+What’s in this version
+  • New branch: CUCO Stacks — stacks are the primary container
+  • Groups “( … )” removed (use stacks only)
+  • Core tokens: notes + x / . / _  (no whitespace required)
+  • New token: x^ (processed inherit flag) — parsed now, behaves like x until processors land
+  • In-stack offsets: note±N (e.g. c3+2) and x±N (e.g. x-5); stack-level +/− applies to x too
+  • Stacks "[ … ]" use per-slot semantics (notes, x, _, .; omitted = rest)
+  • Repeats `*N` on any token; per-note ±N transpose suffix retained
+  • Debugger v1 (//debug //full|//brief //cap=N //notes //trace //trace-scan)
+  • Deterministic PLAN/WRITE and robust SCAN (unchanged)
+]]
+
+-------------------------------------------------------------------------------
+-- Config / Globals
+-------------------------------------------------------------------------------
+local PROJ_NS          = "CUCO_STACKS_ORIGINS"
+local __BOOTED         = false
+local VERBOSE_WATCHER  = false
+
+-- Safety limits (temporarily relaxed for debugging)
+local MAX_NAME_LEN     = 1000000    -- effectively disabled during investigation
+local MAX_PARSE_STEPS  = 1000000000 -- effectively disabled during investigation
+
+-- Defaults
+local DEFAULT_PITCH    = 60   -- C4
+local DEFAULT_CH       = 0    -- MIDI channel
+local DEFAULT_VEL      = 96   -- Velocity
+
+-------------------------------------------------------------------------------
+-- Console helpers (with cap)
+-------------------------------------------------------------------------------
+local __CAP = 300
+local __LINES = 0
+local function clog_reset(cap) __CAP = math.max(1, cap or 300); __LINES = 0; reaper.ShowConsoleMsg("") end
+local function logln(s) if __LINES < __CAP then reaper.ShowConsoleMsg((s or "").."\n"); __LINES = __LINES + 1 end end
+
+-------------------------------------------------------------------------------
+-- Watcher state 
+-------------------------------------------------------------------------------
+local STATE = { last_seen = {}, seeded = false, next_scan = 0.0, interval = 0.33 }
+
+local function take_key(take)
+  local item = reaper.GetMediaItemTake_Item(take)
+  local _, guid = reaper.GetSetMediaItemInfo_String(item, "GUID", "", false)
+  local idx, nt = -1, reaper.CountTakes(item)
+  for t=0, nt-1 do if reaper.GetTake(item, t) == take then idx = t; break end end
+  return guid.."::"..tostring(idx), item
+end
+
+-------------------------------------------------------------------------------
+-- Item notes helpers (CTN origin tag)
+-------------------------------------------------------------------------------
+local function get_item_notes(item) local _, notes = reaper.GetSetMediaItemInfo_String(item, "P_NOTES", "", false); return notes or "" end
+local function set_item_notes(item, notes) reaper.GetSetMediaItemInfo_String(item, "P_NOTES", notes or "", true) end
+local function extract_ctn(notes) return notes:match("CTN:([%x]+)") end
+local function add_ctn_if_missing(item)
+  local notes = get_item_notes(item); local id = extract_ctn(notes)
+  if id then return id end
+  local t = reaper.time_precise(); local r = math.floor((t*1e6) % 0xffffffff)
+  local new_id = string.format("%08x", r)
+  set_item_notes(item, (notes ~= "" and (notes.."\n") or "").."CTN:"..new_id)
+  logln(string.format("[ASSIGN-ORIGIN] origin=%s", new_id)); return new_id
+end
+
+-------------------------------------------------------------------------------
+-- Project ExtState (committed name per origin)
+-------------------------------------------------------------------------------
+local function get_committed_name(origin_id) local ret,val=reaper.GetProjExtState(0,PROJ_NS,origin_id or ""); if ret==0 then return nil end; return (val~="" and val) or nil end
+local function set_committed_name(origin_id, name) reaper.SetProjExtState(0, PROJ_NS, origin_id or "", name or "") end
+
+-------------------------------------------------------------------------------
+-- Music utils
+-------------------------------------------------------------------------------
+local PC_BASE = {c=0,d=2,e=4,f=5,g=7,a=9,b=11}
+local PC_NAME = {[0]="c",[1]="c#",[2]="d",[3]="d#",[4]="e",[5]="f",[6]="f#",[7]="g",[8]="g#",[9]="a",[10]="a#",[11]="b"}
+local function trim(s) return (s or ""):gsub("^%s+",""):gsub("%s+$","") end
+local function note_to_midi(note)
+  if type(note) ~= "string" then return nil end
+  local l, a, o = note:match("^([a-gA-G])([b#]?)(%-?%d+)$"); if not l then return nil end
+  local pc = PC_BASE[l:lower()] or 0; if a=="#" then pc=pc+1 elseif a=="b" then pc=pc-1 end
+  return (tonumber(o)+1)*12 + pc
+end
+local function midi_to_note(m) local o=math.floor(m/12)-1; local pc=((m%12)+12)%12; return (PC_NAME[pc] or "c")..tostring(o) end
+local function fmt_qn(x) return string.format("%.6f QN", x) end
+
+-- QN epsilon based on MIDI PPQ resolution (≈ 1.5 ticks)
+local function compute_eps_qn(take)
+  local ppq0 = reaper.MIDI_GetPPQPosFromProjQN(take, 0)
+  local ppq1 = reaper.MIDI_GetPPQPosFromProjQN(take, 1)
+  local tpq  = math.max(1, (ppq1 - ppq0))
+  return 1.5 / tpq
+end
+
+-------------------------------------------------------------------------------
+-- Flags + header parsing
+-------------------------------------------------------------------------------
+local function parse_flags(name)
+  local flags = { debug=false, full=false, brief=true, cap=300, notes=false, trace=false, trace_scan=false, debug_all=false }
+  for flag in name:gmatch("//%s*([^\n]+)") do
+    local f = flag:lower()
+    if f:find("debug") then flags.debug=true end
+    if f:find("full") then flags.full=true; flags.brief=false end
+    if f:find("brief") then flags.full=false; flags.brief=true end
+    local cap=f:match("cap%s*=%s*(%d+)"); if cap then flags.cap=tonumber(cap) or flags.cap end
+    if f:find("notes") then flags.notes=true end
+    if f:find("trace%-?scan") then flags.trace_scan=true; flags.debug=true end
+    if f:find("trace") and not f:find("trace%-?scan") then flags.trace=true; flags.debug=true end
+    -- One-shot exhaustive mode: //all, //debug-all, or //everything
+    if f:find("debug%-?all") or f:match("%f[%w]all%f[%W]") or f:match("%f[%w]everything%f[%W]") then
+      flags.debug_all = true
+    end
+  end
+  if flags.debug_all then
+    flags.debug = true
+    flags.full = true
+    flags.brief = false
+    flags.notes = true
+    flags.trace = true
+    flags.trace_scan = true
+    flags.cap = math.max(flags.cap or 300, 20000)
+  end
+  return flags
+end
+
+local function parse_step_header(name)
+  local stepQN, body = nil, name
+  local hdr = name:match("^~%s*([%d%.]+%s*[tqsn]?)")
+  if hdr then
+    local num = hdr:match("^[%d%.]+"); local flag = hdr:match("[tqsn]$"); local denom = tonumber(num)
+    if denom and denom>0 then
+      stepQN = 4.0/denom
+      if flag=="t" then stepQN=stepQN*(2/3)
+      elseif flag=="q" then stepQN=stepQN*(4/5)
+      elseif flag=="s" then stepQN=stepQN*(4/7)
+      elseif flag=="n" then stepQN=stepQN*(8/9) end
+    end
+    body = name:sub(#hdr+2):gsub("^%s+","")
+  end
+  body = trim(body); if body:sub(1,1)=="~" then body=body:sub(2) end
+  local body_clean = body:gsub("%s//.*$", "")
+  return stepQN, body, trim(body_clean)
+end
+
+-------------------------------------------------------------------------------
+-- Tokenizer (notes/x/./_, [stack], repeat *N) — groups removed in CUCO Stacks
+-------------------------------------------------------------------------------
+-- Optional: wrap a node with transpose (+/-N) if present after it
+local function maybe_wrap_transpose_after(body, i, n, node)
+  -- Look ahead from i (cursor at first char AFTER node)
+  local k = i
+  while k <= n and body:sub(k,k):match("%s") do k = k + 1 end
+  local off = body:sub(k):match("^([+-]%d+)")
+  if off then
+    return { kind="transpose", n=tonumber(off) or 0, inner=node }, k + #off
+  end
+  return node, i
+end
+
+-- Parse chained processors like !arp(up,7), !arp/7, and shorthands !up/3, !down/4, !rand/5
+local function maybe_parse_processors_after(body, i, n, node)
+  local k = i
+  local procs = nil
+  local function attach(target)
+    if not procs or #procs == 0 then return target, k end
+    -- Attach processors to the innermost meaningful node (before repeat handling)
+    target.procs = target.procs or {}
+    for _,p in ipairs(procs) do table.insert(target.procs, p) end
+    return target, k
+  end
+  while k <= n do
+    while k <= n and body:sub(k,k):match("%s") do k = k + 1 end
+    if body:sub(k,k) ~= '!' then break end
+    -- !name(args)
+    local nam, argstr = body:sub(k):match("^!([%a_][%w_]*)%(([^%)]*)%)")
+    if nam then
+      k = k + 1 + #nam + 1 + #argstr + 1
+      local name = nam:lower()
+      procs = procs or {}
+      if name == 'arp' then
+        -- !arp(dir, N[, one_shot])
+        -- one_shot: if 1, play chord once within N slices; default is looping
+        local dir, num, oneshot = argstr:match("^%s*([%a_]+)%s*,%s*(%d+)%s*,%s*(%d+)%s*$")
+        if dir and num and oneshot then
+          dir = dir:lower()
+          local nval = tonumber(num) or 0
+          local loop = not ((tonumber(oneshot) or 0) == 1)
+          table.insert(procs, { kind='proc', name='arp', dir=dir, n=nval, loop=loop })
+        else
+          local dir2, num2 = argstr:match("^%s*([%a_]+)%s*,%s*(%d+)%s*$")
+          dir2 = dir2 and dir2:lower() or 'up'
+          local nval2 = tonumber(num2) or 0
+          table.insert(procs, { kind='proc', name='arp', dir=dir2, n=nval2, loop=true })
+        end
+      elseif name == 'up' or name == 'down' or name == 'rand' or name == 'random' then
+        local dir = name == 'random' and 'rand' or name
+        local num = tonumber((argstr or ''):match("(%d+)") or '') or 0
+        table.insert(procs, { kind='proc', name='arp', dir=dir, n=num })
+      else
+        -- Unknown processor; store raw for future use
+        table.insert(procs, { kind='proc', name=name, raw=argstr })
+      end
+    else
+      -- !name/number shorthand
+      local nam2, rate = body:sub(k):match("^!([%a_][%w_]*)/(%d+)")
+      if nam2 then
+        k = k + 1 + #nam2 + 1 + #rate
+        local name = nam2:lower()
+        procs = procs or {}
+        if name == 'arp' or name == 'up' or name == 'down' or name == 'rand' or name == 'random' then
+          local dir = (name == 'arp') and 'up' or (name == 'random' and 'rand' or name)
+          table.insert(procs, { kind='proc', name='arp', dir=dir, n=tonumber(rate) or 0, loop=true })
+        else
+          table.insert(procs, { kind='proc', name=name, n=tonumber(rate) or 0 })
+        end
+      else
+        break
+      end
+    end
+  end
+  return attach(node)
+end
+
+local function maybe_parse_inline_procs(s, idx)
+  local k = idx
+  local procs = {}
+  while k <= #s do
+    if s:sub(k,k) ~= '!' then break end
+    -- !name(args)
+    local nam, argstr = s:sub(k):match("^!([%a_][%w_]*)%(([^%)]*)%)")
+    if nam then
+      k = k + 1 + #nam + 1 + #argstr + 1
+      local name = nam:lower()
+      if name == 'arp' then
+        local dir, num, oneshot = argstr:match("^%s*([%a_]+)%s*,%s*(%d+)%s*,%s*(%d+)%s*$")
+        if dir and num and oneshot then
+          dir = dir:lower()
+          local nval = tonumber(num) or 0
+          local loop = not ((tonumber(oneshot) or 0) == 1)
+          table.insert(procs, { kind='proc', name='arp', dir=dir, n=nval, loop=loop })
+        else
+          local dir2, num2 = argstr:match("^%s*([%a_]+)%s*,%s*(%d+)%s*$")
+          dir2 = dir2 and dir2:lower() or 'up'
+          local nval2 = tonumber(num2) or 0
+          table.insert(procs, { kind='proc', name='arp', dir=dir2, n=nval2, loop=true })
+        end
+      elseif name == 'up' or name == 'down' or name == 'rand' or name == 'random' then
+        local dir = name == 'random' and 'rand' or name
+        local num = tonumber((argstr or ''):match("(%d+)") or '') or 0
+        table.insert(procs, { kind='proc', name='arp', dir=dir, n=num, loop=true })
+      else
+        table.insert(procs, { kind='proc', name=name, raw=argstr })
+      end
+    else
+      local nam2, rate = s:sub(k):match("^!([%a_][%w_]*)/(%d+)")
+      if nam2 then
+        k = k + 1 + #nam2 + 1 + #rate
+        local name = nam2:lower()
+        if name == 'arp' or name == 'up' or name == 'down' or name == 'rand' or name == 'random' then
+          local dir = (name == 'arp') and 'up' or (name == 'random' and 'rand' or name)
+          table.insert(procs, { kind='proc', name='arp', dir=dir, n=tonumber(rate) or 0, loop=true })
+        else
+          table.insert(procs, { kind='proc', name=name, n=tonumber(rate) or 0 })
+        end
+      else
+        break
+      end
+    end
+  end
+  return procs, k
+end
+
+local function maybe_wrap_repeat_after(body, i, n, node)
+  -- Look ahead from i (current cursor already at first char AFTER node)
+  local k = i
+  while k <= n and body:sub(k,k):match("%s") do k = k + 1 end
+  local m = body:sub(k):match("^%*(%d+)")
+  if m then
+    local N = math.max(1, tonumber(m) or 1)
+    return { kind="repeat", n=N, inner=node }, k + 1 + #m
+  end
+  return node, i
+end
+
+local function scan_chunk_with_repeats(chunk, out, warnings)
+  local i, n = 1, #chunk
+  local steps = 0
+  if DEBUG_TOK then logln("[CHUNK] "..chunk) end
+  while i <= n do
+    steps = steps + 1
+    local sub = chunk:sub(i)
+    local advanced = false
+
+    -- X/X^ with optional offset and processors (e.g. X+12!arp(up,7))
+    do
+      local xsig, caret, xoff, rest = sub:match("^([xX])(%^?)([+-]%d+)?(!.+)$")
+      if xsig and rest then
+        local node = { kind='xref', inherit=(caret=='^'), n=tonumber(xoff) or 0 }
+        local procs = select(1, maybe_parse_inline_procs(rest, 1))
+        if procs and #procs > 0 then node.procs = procs end
+        out[#out+1] = node
+        i = i + 1 + #caret + (xoff and #xoff or 0) + #rest
+        advanced = true
+      end
+    end
+
+    if not advanced then
+      -- bare X^ with optional +/-N (no procs)
+      local xs_bare, caret_bare, xoff_bare = sub:match("^([xX])(%^)([+-]%d+)?")
+      if xs_bare then
+        out[#out+1] = { kind='xref', inherit=true, n=tonumber(xoff_bare) or 0 }
+        i = i + 1 + #caret_bare + (xoff_bare and #xoff_bare or 0)
+        advanced = true
+      end
+    end
+
+    if not advanced then
+      -- note(+/-tp)*rep
+      local base, tp, rep = sub:match("^([a-gA-G][b#]?%-?%d+)([+-]%d+)%*(%d+)")
+      if base and tp and rep then
+        local node = { kind='transpose', n=tonumber(tp), inner=base }
+        out[#out+1] = { kind='repeat', n=tonumber(rep), inner=node }
+        i = i + #base + #tp + 1 + #rep
+        advanced = true
+      end
+    end
+
+    if not advanced then
+      -- note*rep
+      local note, rep2 = sub:match("^([a-gA-G][b#]?%-?%d+)%*(%d+)")
+      if note and rep2 then
+        out[#out+1] = { kind='repeat', n=tonumber(rep2), inner=note }
+        i = i + #note + 1 + #rep2
+        advanced = true
+      end
+    end
+
+    if not advanced then
+      -- note(+/-tp)
+      local base2, tp2 = sub:match("^([a-gA-G][b#]?%-?%d+)([+-]%d+)")
+      if base2 and tp2 then
+        out[#out+1] = { kind='transpose', n=tonumber(tp2), inner=base2 }
+        i = i + #base2 + #tp2
+        advanced = true
+      end
+    end
+
+    if not advanced then
+      -- processed inherit variants x^±N*R, x^*R, x^±N, x^
+      local xs1, tpPr, repPr = sub:match("^([xX])%^([+-]%d+)%*(%d+)")
+      if xs1 and tpPr and repPr then
+        local node = { kind='inherit', n=tonumber(tpPr) or 0, processed=true }
+        out[#out+1] = { kind='repeat', n=tonumber(repPr), inner=node }
+        i = i + 1 + 1 + #tpPr + 1 + #repPr
+        advanced = true
+      else
+        local xs2, repPr2 = sub:match("^([xX])%^%*(%d+)")
+        if xs2 and repPr2 then
+          local node = { kind='inherit', n=0, processed=true }
+          out[#out+1] = { kind='repeat', n=tonumber(repPr2), inner=node }
+          i = i + 1 + 1 + 1 + #repPr2
+          advanced = true
+        else
+          local xs3, tpPr3 = sub:match("^([xX])%^([+-]%d+)")
+          if xs3 and tpPr3 then
+            out[#out+1] = { kind='inherit', n=tonumber(tpPr3) or 0, processed=true }
+            i = i + 1 + 1 + #tpPr3
+            advanced = true
+          else
+            local xs4 = sub:match("^([xX])%^")
+            if xs4 then
+              out[#out+1] = { kind='inherit', n=0, processed=true }
+              i = i + 2
+              advanced = true
+            end
+          end
+        end
+      end
+    end
+
+    if not advanced then
+      -- legacy x variants: x±N*R, x±N
+      local x1, tpX, repX = sub:match("^([xX])([+-]%d+)%*(%d+)")
+      if x1 and tpX and repX then
+        local node = { kind='inherit', n=tonumber(tpX) or 0 }
+        out[#out+1] = { kind='repeat', n=tonumber(repX), inner=node }
+        i = i + 1 + #tpX + 1 + #repX
+        advanced = true
+      else
+        local x2, tpX2 = sub:match("^([xX])([+-]%d+)")
+        if x2 and tpX2 then
+          out[#out+1] = { kind='inherit', n=tonumber(tpX2) or 0 }
+          i = i + 1 + #tpX2
+          advanced = true
+        end
+      end
+    end
+
+    if not advanced then
+      -- symbol*rep (x . _)
+      local sym, rep3 = sub:match("^([xX%._])%*(%d+)")
+      if sym then
+        out[#out+1] = { kind='repeat', n=tonumber(rep3), inner=sym:lower() }
+        i = i + 2 + #rep3
+        advanced = true
+      end
+    end
+
+    if not advanced then
+      -- symbol (x . _)
+      local sym2 = sub:match("^([xX%._])")
+      if sym2 then
+        out[#out+1] = sym2:lower()
+        i = i + 1
+        advanced = true
+      end
+    end
+
+    if not advanced then
+      -- plain note
+      local note2 = sub:match("^([a-gA-G][b#]?%-?%d+)")
+      if note2 then
+        out[#out+1] = note2
+        i = i + #note2
+        advanced = true
+      end
+    end
+
+    if not advanced then
+      -- skip unknown char
+      if warnings then warnings[#warnings+1] = sub:sub(1,1) end
+      i = i + 1
+    end
+  end
+end
+
+local DEBUG_TOK = false
+
+local function tokenize(body_clean, warnings)
+  local toks = {}; local i, n = 1, #body_clean
+  local steps = 0
+  while i <= n do
+    steps = steps + 1
+    local ch = body_clean:sub(i,i)
+    if DEBUG_TOK and steps % 64 == 1 then
+      logln(string.format("[TOK] i=%d rem='%s'", i, body_clean:sub(i, math.min(i+40, n))))
+    end
+    if ch:match("%s") then
+      i = i + 1
+
+
+    elseif ch=="[" then
+      local j=i+1; while j<=n and body_clean:sub(j,j) ~= "]" do j=j+1 end
+      local inner=body_clean:sub(i+1, math.min(j-1,n)); local entries={}
+      for part in inner:gmatch("%S+") do entries[#entries+1]=part end
+      local node = { kind="stack", entries=entries }
+      -- Order: transpose, processors, transpose, then repeat
+      local node2, k2 = maybe_wrap_transpose_after(body_clean, j+1, n, node)
+      local node3, k3 = maybe_parse_processors_after(body_clean, k2, n, node2)
+      local node4, k4 = maybe_wrap_transpose_after(body_clean, k3, n, node3)
+      local wrapped, ni = maybe_wrap_repeat_after(body_clean, k4, n, node4)
+      toks[#toks+1] = wrapped; i = ni
+
+    elseif ch=="(" then
+      -- Groups removed in CUCO Stacks: skip legacy group syntax entirely
+      local j=i+1; while j<=n and body_clean:sub(j,j) ~= ")" do j=j+1 end
+      i = math.min(j+1, n+1)
+
+    else
+      local j=i
+      while j<=n do
+        local c=body_clean:sub(j,j)
+        if c:match("%s") or c=="[" then break end
+        j=j+1
+      end
+      local chunk = body_clean:sub(i, j-1)
+      scan_chunk_with_repeats(chunk, toks, warnings)
+      i = j
+    end
+  end
+  return toks
+end
+
+-------------------------------------------------------------------------------
+-- MIDI helpers
+-------------------------------------------------------------------------------
+local function get_item_pos_info(take)
+  local item = reaper.GetMediaItemTake_Item(take)
+  local pos = reaper.GetMediaItemInfo_Value(item, "D_POSITION")
+  local len = reaper.GetMediaItemInfo_Value(item, "D_LENGTH")
+  local sQN = reaper.TimeMap2_timeToQN(0, pos)
+  local eQN = reaper.TimeMap2_timeToQN(0, pos+len)
+  return pos, len, sQN, eQN
+end
+local function clear_take(take) reaper.MIDI_DisableSort(take); reaper.MIDI_SetAllEvts(take,""); reaper.MIDI_Sort(take) end
+local function insert_notes(take,pitches,sQN,eQN,vel,ch)
+  local sPPQ=reaper.MIDI_GetPPQPosFromProjQN(take,sQN); local ePPQ=reaper.MIDI_GetPPQPosFromProjQN(take,eQN)
+  for _,m in ipairs(pitches) do reaper.MIDI_InsertNote(take,false,false,sPPQ,ePPQ,ch or DEFAULT_CH,m,vel or DEFAULT_VEL,false) end
+end
+local function compute_step_qn_or_fallback(take, stepQN_opt, step_count)
+  if stepQN_opt then return stepQN_opt end
+  step_count=math.max(1, tonumber(step_count) or 1)
+  local _,_,sQN,eQN=get_item_pos_info(take); local itemLenQN=math.max(1e-6, eQN-sQN)
+  return itemLenQN/step_count
+end
+
+-------------------------------------------------------------------------------
+-- Executor builder (supports write/plan; stacks; repeats; PLAN tracing)
+-------------------------------------------------------------------------------
+local function make_executor(take, default_pitch, last_voices, voice_current, mode, recorder, trace)
+  -- Anchor pitch for top-level inherit; set by real notes only (not by x)
+  local anchor_pitch = nil
+  -- Anchor voices (baked chord) for external x / x±N
+  local anchor_voices = {}
+  local function dlog(fmt, ...)
+    if trace then logln(string.format(fmt, ...)) end
+  end
+  local function rec_emit(voice,pitch,sQN,eQN) if recorder then recorder(voice,pitch,sQN,eQN) end end
+  local function start_voice(i,pitch,sQN,eQN)
+    if mode=="plan" then dlog("PLAN start v%d %d %.3f→%.3f", i, pitch, sQN, eQN) end
+    voice_current[i]={pitch=pitch,startQN=sQN,endQN=eQN}
+  end
+  local function flush_voice(i)
+    local blk=voice_current[i]; if blk then
+      if mode=="plan" then dlog("PLAN close v%d %d %.3f→%.3f", i, blk.pitch, blk.startQN, blk.endQN) end
+      if mode=="write" then insert_notes(take,{blk.pitch},blk.startQN,blk.endQN,DEFAULT_VEL,DEFAULT_CH) else rec_emit(i,blk.pitch,blk.startQN,blk.endQN) end
+      voice_current[i]=nil
+    end
+  end
+  local function flush_all()
+    for i,blk in pairs(voice_current) do
+      if blk then
+        if mode=="plan" then dlog("PLAN close v%d %d %.3f→%.3f", i, blk.pitch, blk.startQN, blk.endQN) end
+        if mode=="write" then insert_notes(take,{blk.pitch},blk.startQN,blk.endQN,DEFAULT_VEL,DEFAULT_CH) else rec_emit(i,blk.pitch,blk.startQN,blk.endQN) end
+        voice_current[i]=nil
+      end
+    end
+  end
+  local function extend_all(eQN)
+    for i,blk in pairs(voice_current) do
+      if blk then
+        if mode=="plan" then dlog("PLAN extend v%d %.3f→%.3f", i, blk.endQN, eQN) end
+        blk.endQN=eQN
+      end
+    end
+  end
+  local function set_last_from_array(arr) for i=1, math.max(#last_voices,#arr) do last_voices[i]=arr[i] end end
+
+  local exec_token -- forward
+  local function exec_window(tok, sQN, eQN, tp_offset)
+    tp_offset = tp_offset or 0
+
+    if type(tok)=="table" and tok.kind=="transpose" then
+      local n = tonumber(tok.n) or 0
+      exec_window(tok.inner, sQN, eQN, tp_offset + n)
+      return
+    end
+
+    -- (group) removed in CUCO Stacks
+
+    if type(tok)=="table" and tok.kind=="repeat" then
+      local N = math.max(1, tonumber(tok.n) or 1)
+      -- Special case: underscore repeat acts like a single extend through the outer window
+      if N > 1 and type(tok.inner)=="string" and tok.inner:lower()=="_" then
+        exec_token("_", sQN, eQN, tp_offset)
+        return
+      end
+      if N <= 1 then
+        exec_window(tok.inner, sQN, eQN, tp_offset)
+        return
+      end
+      local sliceLen = (eQN - sQN) / N
+      for i=1,N do
+        local sSub = sQN + (i-1)*sliceLen
+        local eSub = sSub + sliceLen
+        exec_window(tok.inner, sSub, eSub, tp_offset)
+      end
+      return
+    end
+
+    exec_token(tok, sQN, eQN, tp_offset)
+  end
+
+  exec_token = function(tok, sQN, eQN, tp_offset)
+    tp_offset = tp_offset or 0
+
+    -- Inherit with offset: use baked chord (anchor_voices) if available; else single anchor pitch
+    if type(tok)=="table" and tok.kind=="inherit" then
+      local offset = (tonumber(tok.n) or 0) + (tp_offset or 0)
+      -- If this is a processed inherit (X^) or processors are attached or available from last stack,
+      -- treat it like X/X^ with possible processors.
+      local want_procs = (tok.processed == true) or (tok.procs ~= nil)
+      local base_chord = {}
+      if last_stack_ctx and last_stack_ctx.chord and #last_stack_ctx.chord > 0 then
+        for _,p in ipairs(last_stack_ctx.chord) do if p then table.insert(base_chord, p) end end
+      else
+        if anchor_voices and #anchor_voices > 0 then
+          for _,p in ipairs(anchor_voices) do if p then table.insert(base_chord, p) end end
+        else
+          for _,p in ipairs(last_voices) do if p then table.insert(base_chord, p) end end
+        end
+      end
+      if #base_chord > 0 then
+        for i2=1,#base_chord do base_chord[i2] = base_chord[i2] + offset end
+      end
+      local apply_procs = tok.procs
+      if (tok.processed == true) and (not apply_procs) and last_stack_ctx and last_stack_ctx.procs then
+        apply_procs = last_stack_ctx.procs
+      end
+      if want_procs and apply_procs and #apply_procs > 0 and apply_procs[1].name == 'arp' then
+        flush_all()
+        local proc = apply_procs[1]
+        local chord = {}
+        for _,p in ipairs(base_chord) do table.insert(chord,p) end
+        local dir = proc.dir or 'up'
+        local N = tonumber(proc.n or 0) or 0
+        local loop = (proc.loop ~= false)
+        if N <= 0 then N = math.max(1,#chord) end
+        if dir=='down' then
+          table.sort(chord,function(a,b) return a>b end)
+        elseif dir=='up' then
+          table.sort(chord,function(a,b) return a<b end)
+        elseif dir=='rand' or dir=='random' then
+          for i3=#chord,2,-1 do local j3=math.random(i3); chord[i3],chord[j3]=chord[j3],chord[i3] end
+        end
+        if #chord>0 then
+          local sliceLen=(eQN-sQN)/N
+          for idx=1,N do
+            local sSub=sQN+(idx-1)*sliceLen
+            local eSub=sSub+sliceLen
+            local p=nil
+            if loop then p = chord[((idx-1)%#chord)+1] else if idx<=#chord then p=chord[idx] end end
+            if p then
+              if mode=="write" then insert_notes(take,{p},sSub,eSub,DEFAULT_VEL,DEFAULT_CH) else rec_emit(1,p,sSub,eSub) end
+            end
+          end
+        end
+        -- Update anchors based on mirrored/processed chord
+        anchor_voices = {}
+        for i2=1,#base_chord do anchor_voices[i2]=base_chord[i2] end
+        if anchor_voices[1] then anchor_pitch=anchor_voices[1] end
+        return
+      end
+
+      -- Fallback: mirror chord behavior (legacy X)
+      flush_all()
+      if anchor_voices and #anchor_voices > 0 then
+        local new_last = {}
+        for i,base in ipairs(anchor_voices) do
+          local m = base + offset
+          start_voice(i, m, sQN, eQN)
+          new_last[i] = m
+        end
+        set_last_from_array(new_last)
+      else
+        local base = anchor_pitch or default_pitch
+        local m = base + offset
+        start_voice(1, m, sQN, eQN)
+        last_voices[1] = m
+        for i=2,#last_voices do last_voices[i]=nil end
+      end
+      return
+    end
+
+    if type(tok)=="table" and tok.kind=="stack" then
+      local entries = tok.entries; local new_last={}
+      -- If processors attached, resolve chord and process (currently supports !arp)
+      if tok.procs and #tok.procs > 0 then
+        local chord = {}
+        for i,entry in ipairs(entries) do
+          local p = nil
+          if type(entry) == 'string' then
+            local el = entry:lower()
+            if el == '.' then
+              p = nil
+            elseif el == '_' then
+              p = (voice_current[i] and voice_current[i].pitch) or last_voices[i]
+            elseif el == 'x' or el == 'x^' or el:match('^x[%^]?[+-]%d+$') then
+              local off = 0
+              local m1 = el:match('^x%^([+-]%d+)$')
+              local m2 = el:match('^x([+-]%d+)$')
+              if m1 then off = tonumber(m1) or 0 elseif m2 then off = tonumber(m2) or 0 end
+              local left = nil
+              for j = i-1, 1, -1 do if new_last[j] then left = new_last[j]; break end end
+              local base = left or last_voices[i] or anchor_pitch or default_pitch
+              if base then p = base + (tp_offset or 0) + off end
+            elseif el:match('^[+-]%d+$') then
+              local delta = tonumber(el) or 0
+              local left = nil
+              for j = i-1, 1, -1 do if new_last[j] then left = new_last[j]; break end end
+              if left then
+                p = left + delta
+              else
+                local base = last_voices[i] or anchor_pitch or default_pitch
+                if base then p = base + (tp_offset or 0) + delta end
+              end
+            else
+              local b, off = entry:match('^([a-gA-G][b#]?%-?%d+)([+-]%d+)$')
+              if b and off then
+                p = note_to_midi(b)
+                if p then p = p + (tp_offset or 0) + (tonumber(off) or 0) end
+              else
+                p = note_to_midi(entry)
+                if p then p = p + (tp_offset or 0) end
+              end
+            end
+          end
+          new_last[i] = p
+          if p then table.insert(chord, p) end
+        end
+        -- Apply first processor: arp
+        local proc = tok.procs[1]
+        if proc and proc.name == 'arp' then
+          local dir = (proc.dir or 'up')
+          local N = tonumber(proc.n or 0) or 0
+          local loop = (proc.loop ~= false) -- default true
+          if N <= 0 then N = math.max(1, #chord) end
+          if dir == 'down' then
+            table.sort(chord, function(a,b) return a > b end)
+          elseif dir == 'up' then
+            table.sort(chord, function(a,b) return a < b end)
+          elseif dir == 'rand' or dir == 'random' then
+            for i=#chord,2,-1 do local j=math.random(i); chord[i],chord[j]=chord[j],chord[i] end
+          end
+          if #chord > 0 then
+            local sliceLen = (eQN - sQN) / N
+            for idx=1,N do
+              local sSub = sQN + (idx-1)*sliceLen
+              local eSub = sSub + sliceLen
+              local p = nil
+              if loop then
+                p = chord[((idx-1) % #chord) + 1]
+              else
+                if idx <= #chord then p = chord[idx] end
+              end
+              if p then
+                if mode=="write" then insert_notes(take,{p},sSub,eSub,DEFAULT_VEL,DEFAULT_CH) else rec_emit(1,p,sSub,eSub) end
+              end
+            end
+          end
+        end
+        -- update last/anchor for downstream tokens
+        set_last_from_array(new_last)
+        anchor_voices = {}
+        for i=1,#new_last do anchor_voices[i] = new_last[i] end
+        if anchor_voices[1] then anchor_pitch = anchor_voices[1] end
+        -- remember last stack context for X/X^ sourcing (use the resolved chord before any future X offsets)
+        last_stack_ctx = { chord = {} , procs = tok.procs }
+        for _,p in ipairs(chord) do table.insert(last_stack_ctx.chord, p) end
+        dlog("STACK captured chord n=%d first=%s (with procs)", #last_stack_ctx.chord, tostring(last_stack_ctx.chord[1] or 'nil'))
+        return
+      end
+      for i,entry in ipairs(entries) do
+        if type(entry)~="string" then
+          -- (group-inside-stack is parked — ignore non-strings here)
+          flush_voice(i); new_last[i]=nil
+        else
+          local el=entry:lower()
+          if el=="." then
+            flush_voice(i); new_last[i]=nil
+          elseif el=="_" then
+            if voice_current[i] then
+              if mode=="plan" then dlog("PLAN extend v%d %.3f→%.3f", i, voice_current[i].endQN, eQN) end
+              voice_current[i].endQN=eQN; new_last[i]=voice_current[i].pitch
+            elseif last_voices[i] then
+              if mode=="plan" then dlog("PLAN hold-start v%d %d %.3f→%.3f", i, last_voices[i], sQN, eQN) end
+              start_voice(i,last_voices[i],sQN,eQN); new_last[i]=last_voices[i]
+            else
+              new_last[i]=nil
+            end
+          elseif el=="x" or el=="x^" or el:match("^x[%^]?[+-]%d+$") then
+            -- In-stack inherit: prefer previous source note within this stack row (to the left),
+            -- then fall back to same-slot from previous step, then anchor, then default.
+            local off = 0
+            local m1 = el:match("^x%^([+-]%d+)$")
+            local m2 = el:match("^x([+-]%d+)$")
+            if m1 then off = tonumber(m1) or 0 elseif m2 then off = tonumber(m2) or 0 end
+
+            -- Look left in current stack for the most recently resolved pitch
+            local left = nil
+            for j = i-1, 1, -1 do if new_last[j] then left = new_last[j]; break end end
+
+            local prev_same_slot = last_voices[i]
+            local base = left or prev_same_slot or anchor_pitch or default_pitch
+            if base then
+              local p = base + (tp_offset or 0) + off
+              flush_voice(i)
+              start_voice(i, p, sQN, eQN); new_last[i] = p
+            else
+              flush_voice(i); new_last[i]=nil
+            end
+
+          elseif el:match("^[+-]%d+$") then
+            -- In-stack horizontal relative: +N / -N (relative to last resolved pitch in THIS stack)
+            local delta = tonumber(el) or 0
+            -- Look left for the most recent pitch we just resolved in this stack:
+            local left = nil
+            for j = i-1, 1, -1 do if new_last[j] then left = new_last[j]; break end end
+            if left then
+              -- left already includes tp_offset; don't add it again
+              local p = left + delta
+              flush_voice(i); start_voice(i, p, sQN, eQN); new_last[i] = p
+            else
+              -- fallback if no left pitch yet: use vertical/anchor/default, then apply tp_offset
+              local base = last_voices[i] or anchor_pitch or default_pitch
+              if base then
+                local p = base + (tp_offset or 0) + delta
+                flush_voice(i); start_voice(i, p, sQN, eQN); new_last[i] = p
+              else
+                flush_voice(i); new_last[i]=nil
+              end
+            end
+
+          else
+            -- Notes may have an in-stack ±N suffix: e.g., c3+2 / d4-1
+            local b, off = entry:match("^([a-gA-G][b#]?%-?%d+)([+-]%d+)$")
+            local m
+            if b and off then
+              m = note_to_midi(b)
+              if m then m = m + (tp_offset or 0) + (tonumber(off) or 0) end
+            else
+              m = note_to_midi(entry)
+              if m then m = m + (tp_offset or 0) end
+            end
+            if m then
+              flush_voice(i)
+              start_voice(i, m, sQN, eQN); new_last[i]=m
+            else
+              flush_voice(i); new_last[i]=nil
+            end
+          end
+        end
+      end
+      local max_prev=#last_voices
+      for i=#entries+1, max_prev do flush_voice(i); new_last[i]=nil end
+      set_last_from_array(new_last)
+      -- Phase 7: expose baked stack as anchor for external x / x±N
+      anchor_voices = {}
+      for i=1,#new_last do anchor_voices[i] = new_last[i] end
+      if anchor_voices[1] then anchor_pitch = anchor_voices[1] end
+      -- Also capture last stack chord for X/X^ sourcing (even without processors)
+      last_stack_ctx = { chord = {}, procs = nil }
+      for i=1,#new_last do if new_last[i] then table.insert(last_stack_ctx.chord, new_last[i]) end end
+      dlog("STACK captured chord n=%d first=%s", #last_stack_ctx.chord, tostring(last_stack_ctx.chord[1] or 'nil'))
+      -- Groups removed: no replay anchor to clear
+
+      elseif type(tok) == "table" and tok.kind == 'xref' then
+        -- Handle X/X^ references (with optional processors)
+        flush_all()
+        -- Determine base chord from previous stack context (always from the most recent stack)
+        local base_chord = {}
+        local src = 'empty'
+        if last_stack_ctx and last_stack_ctx.chord and #last_stack_ctx.chord e 0 then
+          for _,p in ipairs(last_stack_ctx.chord) do if p then table.insert(base_chord, p) end end
+          src = 'stack'
+        else
+          -- Fallbacks if no stack context was captured (should be rare)
+          if anchor_voices and #anchor_voices e 0 then
+            for _,p in ipairs(anchor_voices) do if p then table.insert(base_chord,p) end end
+            src = 'anchor'
+          else
+            for _,p in ipairs(last_voices) do if p then table.insert(base_chord,p) end end
+            if #base_chord e 0 then src = 'last' end
+          end
+        end
+        -- Apply offset and tp_offset
+        local offset = (tonumber(tok.n) or 0) + (tp_offset or 0)
+        for i2=1,#base_chord do base_chord[i2] = base_chord[i2] + offset end
+
+        -- Determine processors to apply
+        local apply_procs = tok.procs
+        if tok.inherit and (not apply_procs) and last_stack_ctx and last_stack_ctx.procs then
+          apply_procs = last_stack_ctx.procs
+        end
+        dlog("XREF src=%s chord=%d procs=%s", src, #base_chord, (apply_procs and apply_procs[1] and apply_procs[1].name) or 'none')
+
+        if apply_procs and #apply_procs e 0 and apply_procs[1].name == 'arp' then
+          local proc = apply_procs[1]
+          local chord = {}
+          for _,p in ipairs(base_chord) do table.insert(chord,p) end
+          local dir = proc.dir or 'up'
+          local N = tonumber(proc.n or 0) or 0
+          local loop = (proc.loop ~= false)
+          if N <= 0 then N = math.max(1,#chord) end
+          if dir=='down' then
+            table.sort(chord,function(a,b) return a>b end)
+          elseif dir=='up' then
+            table.sort(chord,function(a,b) return a<b end)
+          elseif dir=='rand' or dir=='random' then
+            for i3=#chord,2,-1 do local j3=math.random(i3); chord[i3],chord[j3]=chord[j3],chord[i3] end
+          end
+          if #chorde0 then
+            dlog("XREF processors path: arp dir=%s n=%d chord=%d", tostring(dir), N, #chord)
+            local sliceLen=(eQN-sQN)/N
+            for idx=1,N do
+              local sSub=sQN+(idx-1)*sliceLen
+              local eSub=sSub+sliceLen
+              local p=nil
+              if loop then p = chord[((idx-1)%#chord)+1] else if idx<=#chord then p=chord[idx] end end
+              if p then
+                if mode=="write" then insert_notes(take,{p},sSub,eSub,DEFAULT_VEL,DEFAULT_CH) else rec_emit(1,p,sSub,eSub) end
+              end
+            end
+          end
+        else
+          -- No processors: mirror chord across window
+          if #base_chorde0 then
+            dlog("XREF mirror path: chord=%d", #base_chord)
+            for _,p in ipairs(base_chord) do
+              if mode=="write" then insert_notes(take,{p},sQN,eQN,DEFAULT_VEL,DEFAULT_CH) else rec_emit(1,p,sQN,eQN) end
+            end
+          else
+            -- fallback: default pitch
+            local m = default_pitch + (tp_offset or 0) + (tonumber(tok.n) or 0)
+            start_voice(1,m,sQN,eQN); last_voices[1]=m
+          end
+        end
+        -- Update anchors based on mirrored chord
+        anchor_voices = {}
+        for i2=1,#base_chord do anchor_voices[i2]=base_chord[i2] end
+        if anchor_voices[1] then anchor_pitch=anchor_voices[1] end
+      elseif type(tok) == "string" then
+        local tl=tok:lower()
+        if tl=="." then
+          flush_all()
+        elseif tl=="_" then
+          extend_all(eQN)
+        elseif tl=="x" then
+          flush_all()
+          -- Mirror the last chord/voices
+          local any=false
+          local src = (anchor_voices and #anchor_voices>0) and anchor_voices or last_voices
+          for i,p in ipairs(src) do if p then start_voice(i,p,sQN,eQN); any=true end end
+          if not any then
+            start_voice(1, default_pitch, sQN,eQN)
+            last_voices[1]=default_pitch; for i=2,#last_voices do last_voices[i]=nil end
+            anchor_voices = { default_pitch }
+            anchor_pitch  = default_pitch
+          end
+        else
+          local m=note_to_midi(tok)
+          if m then
+            m = m + tp_offset
+            flush_all()
+            start_voice(1,m,sQN,eQN)
+            last_voices[1]=m
+            for i=2,#last_voices do last_voices[i]=nil end
+            anchor_pitch  = m
+            anchor_voices = { m }
+          end
+        end
+      end
+    end
+  end
+
+  return exec_window
+end
+
+-------------------------------------------------------------------------------
+-- Debug helpers (sparse-map aware)
+-------------------------------------------------------------------------------
+local function plan_differs(a, b)
+  if a == b then return false end
+  a, b = a or {}, b or {}
+  local seen = {}
+  for v,_ in pairs(a) do seen[v] = true end
+  for v,_ in pairs(b) do seen[v] = true end
+  for v,_ in pairs(seen) do
+    local va, vb = a[v], b[v]
+    if (va and not vb) or (vb and not va) then return true end
+    if va and vb then
+      if va.pitch ~= vb.pitch
+         or math.abs((va.s or 0) - (vb.s or 0)) > 1e-9
+         or math.abs((va.e or 0) - (vb.e or 0)) > 1e-9 then
+        return true
+      end
+    end
+  end
+  return false
+end
+
+local function fmt_voice_row(row, notesFlag)
+  local tmp = {}
+  for v,ev in pairs(row or {}) do
+    if ev and ev.pitch and ev.s and ev.e then
+      tmp[#tmp+1] = { v=v, pitch=ev.pitch, s=ev.s, e=ev.e }
+    end
+  end
+  table.sort(tmp, function(a,b) return a.v < b.v end)
+  local parts = {}
+  for _,ev in ipairs(tmp) do
+    local p = tostring(ev.pitch)
+    if notesFlag then p = p.."("..midi_to_note(ev.pitch)..")" end
+    parts[#parts+1] = string.format("v%d=%s %.3f→%.3f", ev.v, p, ev.s, ev.e)
+  end
+  return table.concat(parts, "  ")
+end
+
+local function copy_row(row)
+  local t = {}
+  for v,ev in pairs(row or {}) do
+    if ev and ev.pitch and ev.s and ev.e then
+      t[v] = { pitch=ev.pitch, s=ev.s, e=ev.e }
+    end
+  end
+  return t
+end
+
+local function collect_leaf_bins(token, sQN, eQN, out_bins)
+  -- Groups removed: every token occupies one bin
+  out_bins[#out_bins+1] = { s=sQN, e=eQN, plan={}, actual={}, trace={} }
+end
+
+-------------------------------------------------------------------------------
+-- Deterministic SCAN (rebuild): route each actual note to closest bin-start
+-------------------------------------------------------------------------------
+local function scan_actual_bins_rebuild(take, bins, flags, eps_qn)
+  -- 1) Load all notes
+  local notes = {}
+  local _, noteCount = reaper.MIDI_CountEvts(take)
+  for i=0, noteCount-1 do
+    local ok, _, _, sPPQ, ePPQ, _, pitch = reaper.MIDI_GetNote(take, i)
+    if ok then
+      local sQN = reaper.MIDI_GetProjQNFromPPQPos(take, sPPQ)
+      local eQN = reaper.MIDI_GetProjQNFromPPQPos(take, ePPQ)
+      notes[#notes+1] = { pitch=pitch, s=sQN, e=eQN }
+    end
+  end
+  -- 2) route to best bin by closest start within [s-eps, e+eps]
+  for _,ev in ipairs(notes) do
+    local sQN, eQN, pitch = ev.s, ev.e, ev.pitch
+    local best_idx, best_dist = nil, 1e9
+    for i,bb in ipairs(bins) do
+      local s, e = bb.s, bb.e
+      if s and e and (sQN >= s - eps_qn) and (sQN <= e + eps_qn) then
+        local d = math.abs(sQN - s)
+        if d < best_dist then best_dist = d; best_idx = i end
+      end
+    end
+    if best_idx then
+      local bb = bins[best_idx]
+      bb.actual[#bb.actual+1] = { pitch=pitch, s=sQN, e=eQN }
+      if flags and flags.trace_scan then
+        logln(string.format("SCAN bin %02d p%d %.3f→%.3f", best_idx, pitch, sQN, eQN))
+      end
+    elseif flags and flags.trace_scan then
+      logln(string.format("SCAN no-bin p%d %.3f→%.3f", pitch, sQN, eQN))
+    end
+  end
+end
+
+local function safe_sort_events(evts, fallback_s, fallback_e)
+  table.sort(evts, function(a,b)
+    local ap = a and a.pitch or -1
+    local bp = b and b.pitch or -1
+    if ap ~= bp then return ap < bp end
+    local as = (a and a.s) or fallback_s or 0
+    local bs = (b and b.s) or fallback_s or 0
+    if math.abs(as - bs) > 1e-9 then return as < bs end
+    local ae = (a and a.e) or fallback_e or as
+    local be = (b and b.e) or fallback_e or bs
+    return ae < be
+  end)
+end
+
+-------------------------------------------------------------------------------
+-- Process up to repeats (with optional debug)
+-------------------------------------------------------------------------------
+local function process_notation_step24(take, name)
+  local flags = parse_flags(name)
+  local stepQN_opt, _, body_clean = parse_step_header(name)
+  -- Safety: log if extremely long, but do not abort during investigation
+  if #body_clean > MAX_NAME_LEN then
+    logln(string.format("[WARN] very long name len=%d; continuing due to debug mode", #body_clean))
+  end
+  local __warn_unknown = {}
+  DEBUG_TOK = flags.debug -- enable tokenizer trace when debugging
+  local tokens = tokenize(body_clean, __warn_unknown)
+  DEBUG_TOK = false
+  -- Fallback: if tokenizer produced nothing, try a direct X/X^ quick-parse
+  if (#tokens == 0) then
+    local xsig, caret, xoff, proc_str = body_clean:match("^([xX])(%^?)([+-]%d+)?(![%a_][%w_]*%b())$")
+    if xsig then
+      local node = { kind = 'xref', inherit = (caret == '^'), n = tonumber(xoff) or 0 }
+      if proc_str then
+        local procs = select(1, maybe_parse_inline_procs(proc_str, 1))
+        if procs and #procs > 0 then node.procs = procs end
+      end
+      tokens = { node }
+    end
+  end
+
+  local stepQN = compute_step_qn_or_fallback(take, stepQN_opt, #tokens)
+  local _,_,itemStartQN = get_item_pos_info(take)
+  local default_pitch = DEFAULT_PITCH
+  local eps_qn = compute_eps_qn(take)
+
+  if flags.debug and #__warn_unknown > 0 then
+    -- summarize up to first 20 unknown chars
+    local seen, list = {}, {}
+    for _,ch in ipairs(__warn_unknown) do if not seen[ch] then seen[ch]=true; list[#list+1]=ch end end
+    local preview = table.concat(list, " ")
+    logln(string.format("[WARN] Unknown token characters encountered: %s", preview))
+  end
+  if #tokens == 0 then
+    if flags.debug then logln("[PARSE] no tokens found (nothing to write)") end
+  end
+
+  -- Limit heavy debug work for very large token counts
+  local dbg_token_limit = nil
+  if flags.debug and not flags.full and #tokens > 4096 then
+    dbg_token_limit = 512
+    logln(string.format("[DEBUG] too many tokens (%d); limiting PLAN/SCAN to first %d bins", #tokens, dbg_token_limit))
+  end
+
+  -- DEBUG: parse echo
+  if flags.debug then
+    clog_reset(flags.cap)
+    logln(string.format("[DEBUG] name='%s'", name))
+    logln(string.format("[PARSE] stepLen=%s steps=%d", fmt_qn(stepQN), #tokens))
+    if flags.full then
+      local function ts(t)
+        if type(t)=="string" then return t
+        elseif t.kind=="stack" then return "stack["..table.concat(t.entries," ").."]"
+        elseif t.kind=="repeat" then return "repeat("..ts(t.inner).."*"..tostring(t.n)..")"
+        elseif t.kind=="transpose" then return "transpose("..ts(t.inner).."@"..tostring(t.n)..")"
+        elseif t.kind=="inherit" then
+          local tag = (t.processed and "inherit^" or "inherit")
+          return tag.."("..tostring(t.n)..")"
+        elseif t.kind=="xref" then
+          local tag = (t.inherit and "xref^" or "xref")
+          local p = t.procs and t.procs[1] and (t.procs[1].name.."/"..tostring(t.procs[1].n or "")) or ""
+          return tag.."("..tostring(t.n or 0)..")"..(p ~= "" and ("!"..p) or "")
+        end
+        return "?"
+      end
+      local xs={}; for _,t in ipairs(tokens) do xs[#xs+1]=ts(t) end
+      logln("[TOKENS] "..table.concat(xs,"  "))
+    end
+  end
+
+  -- Plan bins (leaf-level)
+  local bins = nil
+  if flags.debug then
+    bins = {}
+    local max_k = dbg_token_limit and math.min(#tokens, dbg_token_limit) or #tokens
+    for k = 1, max_k do
+      local tok = tokens[k]
+      local sQN = itemStartQN + (k-1)*stepQN; local eQN = sQN + stepQN
+      collect_leaf_bins(tok, sQN, eQN, bins)
+    end
+    if flags.trace then
+      logln("[BINS]")
+      for i,bb in ipairs(bins) do
+        logln(string.format("  %02d: %.6f→%.6f", i, bb.s or -1, bb.e or -1))
+      end
+    end
+  end
+
+  -- PLAN pass
+  if flags.debug then
+    local last_voices, voice_current = {}, {}
+
+    local function recorder(voice, pitch, sQN, eQN)
+      local best_idx, best_dist = nil, 1e9
+      for i,bb in ipairs(bins) do
+        local s, e = bb.s, bb.e
+        if s and e and (sQN >= s - eps_qn) and (sQN <= e + eps_qn) then
+          local d = math.abs(sQN - s)
+          if d < best_dist then best_dist = d; best_idx = i end
+        end
+      end
+      if best_idx then
+        local bb = bins[best_idx]
+        bb.trace[#bb.trace+1] = { voice=voice, pitch=pitch, s=sQN, e=eQN }
+        if flags.trace then
+          logln(string.format("REC bin %02d v%d %d %.3f→%.3f", best_idx, voice, pitch, sQN, eQN))
+        end
+      elseif flags.trace then
+        logln(string.format("REC no-bin v%d %d %.3f→%.3f", voice, pitch, sQN, eQN))
+      end
+    end
+
+    local exec = make_executor(take, default_pitch, last_voices, voice_current, "plan", recorder, flags.trace)
+    do
+      local max_k = (dbg_token_limit and math.min(#tokens, dbg_token_limit)) or #tokens
+      for k = 1, max_k do
+        local tok = tokens[k]
+        local sQN = itemStartQN + (k-1)*stepQN; local eQN = sQN + stepQN
+        exec(tok, sQN, eQN, 0)
+      end
+    end
+    for v,blk in pairs(voice_current) do recorder(v, blk.pitch, blk.startQN, blk.endQN) end
+
+    -- Build PLAN rows from trace: last event per voice within that bin (sparse map)
+    -- Additionally, capture all planned events per bin for 1:1 comparison with SCAN
+    for _,bb in ipairs(bins) do
+      local last_per_voice = {}
+      local all_emits = {}
+      for _,ev in ipairs(bb.trace) do
+        last_per_voice[ev.voice] = { pitch=ev.pitch, s=ev.s, e=ev.e }
+        if ev and ev.pitch and ev.s and ev.e then
+          all_emits[#all_emits+1] = { pitch=ev.pitch, s=ev.s, e=ev.e }
+        end
+      end
+      bb.plan = last_per_voice
+      bb.plan_events = all_emits
+    end
+
+    if flags.full then
+      logln("[PLAN] (state changes only)")
+      local prev=nil
+      for i,bb in ipairs(bins) do
+        if plan_differs(bb.plan, prev) then
+          local snap = copy_row(bb.plan)
+          logln(string.format("  bin %02d  %.3f→%.3f  %s", i, bb.s, bb.e, fmt_voice_row(snap, flags.notes)))
+          prev = snap
+        end
+      end
+    end
+    if flags.debug_all then
+      logln("[PLAN-ALL] (every bin)")
+      for i,bb in ipairs(bins) do
+        local snap = copy_row(bb.plan)
+        logln(string.format("  bin %02d  %.3f→%.3f  %s", i, bb.s, bb.e, fmt_voice_row(snap, flags.notes)))
+      end
+    end
+  end
+
+  -- WRITE pass
+  clear_take(take)
+  do
+    local last_voices, voice_current = {}, {}
+    local exec = make_executor(take, default_pitch, last_voices, voice_current, "write", nil, false)
+    for k, tok in ipairs(tokens) do
+      local sQN = itemStartQN + (k-1)*stepQN; local eQN = sQN + stepQN
+      exec(tok, sQN, eQN, 0)
+    end
+    for i,blk in pairs(voice_current) do insert_notes(take, { blk.pitch }, blk.startQN, blk.endQN, DEFAULT_VEL, DEFAULT_CH); voice_current[i]=nil end
+  end
+  reaper.MIDI_Sort(take)
+
+  -- SCAN + DIFF (rebuild)
+  if flags.debug and bins then
+    scan_actual_bins_rebuild(take, bins, flags, eps_qn)
+
+    if flags.full then
+      logln("[SCAN] (state changes only)")
+      local prev=nil
+      for i,bb in ipairs(bins) do
+        safe_sort_events(bb.actual, bb.s, bb.e)
+        local row={}
+        for idx,ev in ipairs(bb.actual) do
+          if ev and ev.pitch and ev.s and ev.e then row[idx]={pitch=ev.pitch,s=ev.s,e=ev.e} end
+        end
+        if plan_differs(row, prev) then
+          local snap = copy_row(row)
+          logln(string.format("  bin %02d  %.3f→%.3f  %s", i, bb.s, bb.e, fmt_voice_row(snap, flags.notes)))
+          prev = snap
+        end
+      end
+    end
+    if flags.debug_all then
+      logln("[SCAN-ALL] (every bin)")
+      for i,bb in ipairs(bins) do
+        safe_sort_events(bb.actual, bb.s, bb.e)
+        local row={}
+        for idx,ev in ipairs(bb.actual) do
+          if ev and ev.pitch and ev.s and ev.e then row[idx]={pitch=ev.pitch,s=ev.s,e=ev.e} end
+        end
+        local snap = copy_row(row)
+        logln(string.format("  bin %02d  %.3f→%.3f  %s", i, bb.s, bb.e, fmt_voice_row(snap, flags.notes)))
+      end
+    end
+
+    local function canon(row)
+      local t={}
+      for _,ev in pairs(row or {}) do
+        if type(ev)=="table" and ev.pitch and ev.s and ev.e then
+          t[#t+1]=string.format("%d@%.6f→%.6f",ev.pitch,ev.s,ev.e)
+        end
+      end
+      table.sort(t); return table.concat(t,"|")
+    end
+
+    local mism=0
+    for _,bb in ipairs(bins) do
+      safe_sort_events(bb.actual, bb.s, bb.e)
+      local plan_row, actual_row = {}, {}
+      for _,ev in ipairs(bb.plan_events or {}) do
+        if ev and ev.pitch and ev.s and ev.e then plan_row[#plan_row+1] = { pitch=ev.pitch, s=ev.s, e=ev.e } end
+      end
+      for _,ev in ipairs(bb.actual) do
+        if ev and ev.pitch and ev.s and ev.e then actual_row[#actual_row+1] = { pitch=ev.pitch, s=ev.s, e=ev.e } end
+      end
+      safe_sort_events(plan_row, bb.s, bb.e)
+      safe_sort_events(actual_row, bb.s, bb.e)
+      if canon(plan_row) ~= canon(actual_row) then mism=mism+1 end
+    end
+    logln(string.format("[CHECK] bins=%d mismatches=%d", #bins, mism))
+  end
+
+  logln(string.format("[WRITE] steps=%d stepLen=%s", #tokens, fmt_qn(stepQN)))
+end
+
+-------------------------------------------------------------------------------
+-- Trigger handler
+-------------------------------------------------------------------------------
+local function handle_trigger(take, name)
+  local key, item = take_key(take)
+  local origin_id = add_ctn_if_missing(item)
+  local committed = get_committed_name(origin_id)
+  if committed and committed == name then logln(string.format("[IGNORED-SPLIT] '%s' origin=%s", name, origin_id)); return end
+  logln(string.format("[TRIGGER] '%s' origin=%s", name, origin_id))
+  reaper.Undo_BeginBlock()
+  local ok, err = pcall(process_notation_step24, take, name)
+  if not ok then
+    logln("[CUCO Stacks Error] "..tostring(err))
+    reaper.Undo_EndBlock("CUCO Stacks — v0.0.0 (error)", -1)
+    return
+  end
+  set_committed_name(origin_id, name)
+  reaper.Undo_EndBlock("CUCO Stacks — v0.0.0", -1)
+end
+
+-------------------------------------------------------------------------------
+-- Boot seed + watcher
+-------------------------------------------------------------------------------
+local function seed_cache_once()
+  if STATE.seeded then return end
+  local proj=0; local count=0; local item_cnt=reaper.CountMediaItems(proj)
+  for i=0,item_cnt-1 do
+    local item=reaper.GetMediaItem(proj,i); local take_cnt=reaper.CountTakes(item)
+    for t=0,take_cnt-1 do
+      local take=reaper.GetTake(item,t)
+      if take and reaper.TakeIsMIDI(take) then
+        local _,nm=reaper.GetSetMediaItemTakeInfo_String(take,"P_NAME","",false)
+        local key=take_key(take); STATE.last_seen[key]=nm or ""; count=count+1
+      end
+    end
+  end
+  STATE.seeded=true; logln(string.format("[SEED] cached %d takes", count))
+end
+
+local function scan_once()
+  -- One-time boot banner + seed
+  if not __BOOTED then
+    logln("[CUCO Stacks] Watcher running (v0.0.0)")
+    seed_cache_once()
+    __BOOTED = true
+  end
+
+  local now=reaper.time_precise(); if now<STATE.next_scan then return end; STATE.next_scan=now+STATE.interval
+  local proj=0; local item_cnt=reaper.CountMediaItems(proj)
+  for i=0,item_cnt-1 do
+    local item=reaper.GetMediaItem(proj,i); local take_cnt=reaper.CountTakes(item)
+    for t=0,take_cnt-1 do
+      local take=reaper.GetTake(item,t)
+      if take and reaper.TakeIsMIDI(take) then
+        local _,name=reaper.GetSetMediaItemTakeInfo_String(take,"P_NAME","",false); name=name or ""
+        local key, itm = take_key(take); local prev=STATE.last_seen[key]
+        if prev==nil then STATE.last_seen[key]=name
+          if VERBOSE_WATCHER then
+            local id=extract_ctn(get_item_notes(itm))
+            if id then logln(string.format("[NEW-TAKE] cached '%s' origin=%s", name, id)) else logln(string.format("[NEW-TAKE] cached '%s' (no origin)", name)) end
+          end
+        elseif prev ~= name then
+          STATE.last_seen[key]=name
+          if name:sub(1,1) ~= "~" then logln(string.format("[SKIP-NOPREFIX] '%s'", name))
+          else local ok,err=pcall(handle_trigger,take,name); if not ok then logln("[Watcher Error] "..tostring(err)) end end
+        end
+      end
+    end
+  end
+end
+
+local function main_loop() local ok,err=pcall(scan_once); if not ok then logln("[Watcher Error] "..tostring(err)) end; reaper.defer(main_loop) end
+
+-- Start
+main_loop()

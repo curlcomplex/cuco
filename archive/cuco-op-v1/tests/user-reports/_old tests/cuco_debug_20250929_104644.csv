@@ -1,0 +1,14 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 10:46:44
+# ERROR: ...cation Support/REAPER/Scripts/CUCO/CUCO-OP/src/pitch.lua:111: Unknown chord quality: 3maj7
+# Notation:
+# ~16 @c.minor
+# chord1 = (c4 e4 g4)
+# chord2 = (d4 f4 a4)
+# chord3 =  [C3maj7 C2min7]
+# seq = [chord1 chord2 chord3]
+# ch1 = seq
+#
+# No events generated due to error
+error,message
+1,"...cation Support/REAPER/Scripts/CUCO/CUCO-OP/src/pitch.lua:111: Unknown chord quality: 3maj7"

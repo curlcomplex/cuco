@@ -1,0 +1,96 @@
+{
+  "root": "/Users/f.god/Library/Application Support/REAPER/Scripts/CUCO/CUCO-OP",
+  "generated": 1758792831.8949912,
+  "aims_head": "# CUCO-OP Project Aims\n\n## Overview\nCreate a Reaper script that brings the sophisticated music composition and algorithmic generation capabilities of the CUCO-OP system into a DAW environment. The script will feature a GUI text editor where users can write code using CUCO-OP's musical functions and philosophy, then execute that code to generate or process MIDI data directly within Reaper.\nWe also ship an autonomous test harness (OSC-triggered) that proves correctness by writing real MIDI items, scanning them, and comparing against expected plans.\n\n## Primary Objectives\n1. **Bridge CUCO-OP and Reaper**: Integrate the musical composition system's functions into Reaper's MIDI workflow\n2. **Live Code Editor**: Provide an intuitive GUI text editor within Reaper for writing and executing musical code\n3. **Flexible MIDI Processing**: Enable both generation of new MIDI items and processing of existing selected items\n4. **Preserve CUCO-OP Philosophy**: Maintain the system's approach to musical structure, analysis, and generation\n\n## Target Features\n\n### Core System Functions (from CUCO-OP documentation)\n- **Analysis**: Pitch, rhythm, harmonic analysis of existing MIDI\n- **Generation**: Algorithmic melody, harmony, and rhythm creation\n- **Counterpoint**: Species counterpoint and voice leading\n- **Dodecaphony**: Twelve-tone and serial techniques\n- **L-Systems**: Lindenmayer systems for musical structures\n- **Probability**: Stochastic composition methods\n- **Permutations**: Systematic pitch and rhythm transformations\n- **Schillinger Interference**: Advanced rhythmic and harmonic interference patterns\n- **Tonality**: Key analysis, modulation, chord progressions\n- **Microtonality**: Support for non-12-tone equal temperament\n- **OMN (Opusmodus Musical Notation)**: Text-based musical notation system\n\n### Interface Features\n- **GUI Text Editor**: Syntax highlighting, code completion, error highlighting\n- **Execution Engine**: Run code with real-time feedback\n- **MIDI Integration**: Seamless connection to Reaper's MIDI system\n- **Template Library**: Pre-built examples and starting points\n- **Documentation Browser**: Integrated access to function reference\n\n## Technical Goals\n- **Lua Implementation**: Build using Reaper's native Lua scripting environment\n- **Efficient MIDI Handling**: Fast processing of large MIDI datasets\n- **Modular Architecture**: Clean separation between GUI, execution engine, and MIDI processing\n- **Real-time Performance**: Responsive interface suitable for live coding scenarios\n- **Cross-platform Compatibility**: Work consistently across Windows, macOS, and Linux\n- **Memory Management**: Efficient handling of complex musical structures and large compositions\n\n## Success Criteria\n- **Functional Core**: Successfully implement key CUCO-OP functions (generation, analysis, transformations), with artifact-based tests exercising each feature\n- **Seamless Integration**: Script runs smoothly within Reaper without conflicts\n- **User Experience**: Intuitive interface that composers can learn and use effectively\n- **Performance**: Handle complex compositions without significant latency\n- **Extensibility**: Architecture allows for adding new functions and features\n- **Community Adoption**: Positive feedback from composers and Reaper users\n\n## Implementation Considerations\n\n### 1. Syntax and Language Design \u2705 DECISION MADE\n**Decision**: Adapt the CUCO Stacks notation system you've already developed\n\n**CUCO Stacks Syntax Overview** (from your existing system):\n- **Stacks**: `[notes, x, _, .]` - primary containers using per-slot semantics\n- **Core tokens**:\n  - Notes: `c3`, `d#4`, `f-2` etc.\n  - Inherit: `x` (inherit from previous), `x^` (processed inherit)\n  - Rest: `_` (explicit rest)\n  - Sustain: `.` (continue previous note)\n- **Offsets**: `c3+2` (transpose), `x-5` (inherit with offset)\n- **Repeats**: `*N` on any token (e.g., `c3*4`, `[c3 d3]*2`)\n- **Scale Context**: `@c.major`, `@f#.minor.q` (with quantization)\n- **Processors**: `!arp(up,7)`, `!rand/3`, `!poly(3,5,2)`\n- **Step Resolution**: `~16` (16th notes), `~8t` (triplet 8ths)\n- **Debugger**: `//debug`, `//full`, `//trace`\n\n**Advantages for CUCO-OP**:\n- Already battle-tested in your Reaper environment\n- Compact, expressive notation\n- Supports complex musical concepts (scales, arpeggiation, polyrhythms)\n- Extensible processor system\n- Built-in debugging capabilities\n\nHarness note: tests currently encode expected plans as Lua tables. The action writes item-relative QN timing, scans back to rows, and the comparator marks pass/fail with tight QN tolerances.\n\n### 2. Output Targeting and MIDI Channel Assignment\n**Question**: How does the script know which variables to write to MIDI items and which channels to use?\n\n**Approach Options**:\n\n**A) Explicit Output Functions**:\n```lua\nmelody = [c4 d4 e4 f4]\nharmony = melody !harmonize(triads)\n\n-- Explicit output calls\nwrite(melody, {channel=1, track=\"current\"})\nwrite(harmony, {channel=2, track=\"Piano\"})\nwrite_to_selected(bass_line, {channel=10})\n```\n\n**B) Variable Naming Convention**:\n```lua\n-- Variables starting with 'out_' automatically written\nout_ch1 = [c4 d4 e4 f4]\nout_ch2_piano = melody !harmonize(triads)\nout_drums = [_ x _ x]*4  -- channel inferred from name\n\n-- Or channel number in name\nch1 = melody\nch2 = harmony\nch10 = drums\n```\n\n**C) Output Declarations at Top**:\n```lua\n-- Declare outputs first\n@outputs {\n  melody: {channel=1, track=\"Lead\"},\n  harmony: {channel=2, track=\"Piano\"},\n  bass: {channel=3, track=\"Bass\"}\n}\n\n-- Then assign to declared names\nmelody = [c4 d4 e4 f4]\nharmony = melody !harmonize(triads)\nbass = melody !extract_bass() !transpose(-12)\n",
+  "project_status_head": "# Project Status & Current Context\n\n**Last Updated:** September 25, 2025\n\n## Current State Summary\n\n### Overall Proj### Next Development Phase (Priority Order)\n\n### 1. Test New Framework Systems \ud83d\udccb\n- **Task**: Use fresh context to validate workspace familiarization and research framework\n- **Purpose**: Confirm safeguards prevent workspace oversights and maintain development quality\n- **Validation**: Next agent should complete full workspace familiarization before work\n- **Success Criteria**: No missing components, full awareness of System Functions, knowledge base usage\n\n### 2. Expand System Functions Coverage \ud83d\udd04\n- **Task**: Continue implementing remaining system functions from AIMS.md using Phase 0A research process\n- **Reference**: Use knowledge base patterns + new research framework for complex functions\n- **Approach**: Search knowledge base, complete research documentation, then implement\n- **Expected**: Systematic progress through remaining functionality with rigorous theoretical backingrking on implementing Pitch System Functions as part of the System Functions Coverage milestone. Basic notation engine was completed and committed in previous milestone.\n\n### What's Working \u2705\n- **Complete basic notation engine** (tokenizer \u2192 parser \u2192 executor)\n- **OSC test automation pipeline** fully functional in REAPER\n- **MIDI generation and validation system** with CSV/JSON artifacts\n- **Basic notation features**: repeats (*N), rests (_), sustain (.), chords ((c4 e4 g4))\n- **Comprehensive test suite** with all basic notation tests passing\n\n### Current Status \u2705\n**Chord literal investigation completed successfully**\n\n**Resolution Summary:**\n- **Chord literals work perfectly** - no bugs in tokenizer, parser, or executor\n- Issue was **incorrect test expectations** causing apparent failures\n- Investigation revealed tests showing \"0 events\" had invalid notation or wrong expected values\n- Created working test `simple_chord_test.lua` that demonstrates correct functionality\n\n**Key Findings:**\n- `CM` chord correctly generates 3 MIDI notes: C(60), E(64), G(67)\n- Timing expectations must match system resolution (`~16` \u2192 0.25 beat duration)\n- `processors_arp_poly` works correctly with 8 events from `[CM7 Dm7] !arp(up,8)`\n- Component isolation testing validated each pipeline stage individually\n\n**Knowledge Base Integration:**\n- Complete investigation documented in `knowledge_base/resolved/2025-09-25_chord_literal_zero_events.md`\n- Investigation patterns and prevention measures added to knowledge base\n- Development workflow updated to include mandatory knowledge base checks\n\n## Work Attempted This Session\n\n### 1. Pitch System Functions Implementation\n- Created `src/pitch.lua` with chord literal parsing and voicing algorithms\n- Added CHORD_LITERAL token support to tokenizer and parser\n- Implemented chord literal evaluation in executor\n- Created test case `tests/pitch_system.lua`\n\n### 2. Syntax Alignment Issue Discovered\n- Initially implemented incorrect chord syntax (`c-maj7`, `f#-min7`)\n- AIMS.md specifies correct format: `CM7`, `F#m7`, `B\u00b07/D`\n- Partially corrected implementation to match AIMS.md\n\n### 3. Development Process Enhancement\n- Updated development guide to mandate AIMS.md consultation\n- Added fresh context protocol to development cycle\n- Established pre-implementation planning phase\n\n## Files Modified (Not Committed)\n- `src/pitch.lua` - NEW: Pitch system functions module\n- `src/tokenizer.lua` - Added CHORD_LITERAL token type\n- `src/parser.lua` - Added CHORD_LITERAL AST type and parsing\n- `src/executor.lua` - Added chord literal evaluation\n- `tests/pitch_system.lua` - Test case for chord literals\n- `test_pitch_module.lua` - Standalone debug file\n\n## Architecture Notes\n\n### Core Components Status\n- **`src/engine.lua`** - Main API module (STABLE)\n- **`src/tokenizer.lua`** - Parses CUCO Stacks notation (NEEDS DEBUG - chord literals)\n- **`src/parser.lua`** - Converts tokens to AST (STABLE)\n- **`src/executor.lua`** - Executes AST to generate MIDI plans (STABLE)\n- **`src/pitch.lua`** - Pitch/chord functions (NEW - NEEDS INTEGRATION DEBUG)\n\n### Implementation Notes\n- Tokenizer pattern: `^([A-G][#b]?[%w\u00b0\u00f8#b/]*)` may need refinement\n- Chord qualities mapped in `CHORD_QUALITIES` table\n- Voicing algorithms implemented but not yet tested in full pipeline\n- Integration between tokenizer \u2192 parser \u2192 executor may have gaps\n\n## System Functions Coverage Status\n\n### Tier 0 \u2014 Foundations\n- **MIDI** \u2705 DONE - Writer/scan/comparator complete\n- **OMN** \u2705 DONE - DSL baseline (Stacks), parsing/engine complete\n- **Quantization** \ud83d\udccb PLANNED - Grid QN/PPQ snapping\n- **Meter and Time Signature** \ud83d\udccb PLANNED - Bar awareness\n- **Tempo** \ud83d\udccb PLANNED - Tempo maps\n- **Conversions** \ud83d\udccb PLANNED - Pitch-class\u2194MIDI\u2194freq\n- **Intervals** \ud83d\udccb PLANNED - Interval ops/quality\n- **Lengths** \ud83d\udccb PLANNED - Duration math and normalization\n- **Utilities** \ud83d\udccb PLANNED - Misc helpers\n\n### Tier 1 \u2014 Core Musical Wins\n- **Pitches** \u2705 COMPLETED - Basic notes, chord literals, and voicing algorithms all working correctly\n- **Tonality** \ud83d\udccb PLANNED - Key/scale functions\n- **Velocity** \ud83d\udccb PLANNED - Dynamics shaping\n- **Envelopes** \ud83d\udccb PLANNED - Velocity/time envelopes\n- **Probability** \ud83d\udccb PLANNED - Random/humanize/generative\n- **Randomization** \ud83d\udccb PLANNED - Distributions/seed\n- **Permutations** \ud83d\udccb PLANNED - Permute pitches/rhythms\n- **Sort** \ud83d\udccb PLANNED - Ordering ops\n- **Ambitus** \ud83d\udccb PLANNED - Per-voice range checks\n- **Position** \ud83d\udccb PLANNED - Alignment/phase ops\n- **Span** \ud83d\udccb PLANNED - Phrase spans\n\n## Available Tests and Status\n\n### Passing Tests \u2705\n- `rhythm_basic` - Basic rhythm and note sequences\n- `chords_basic` - Parentheses chords and basic chord features\n- `processors_arp_poly` - Arpeggiation and polyrhythm processors\n- `notation_*` - Comprehensive notation feature validation (repeats, rests, sustain, chords)\n- `stress_many_events` - 512 events performance test\n- `engine_smoke` - Pipeline validation test\n\n### Failing Tests \u274c\n- `pitch_system` - Chord literals (CM7, F#m7, etc.) - **CURRENT FOCUS**\n\n## Next Development Phase (Priority Order)\n\n### 1. Implement Knowledge Base Maintenance Process \ud83d\udcda\n- **Task**: Establish quarterly review process for prevention measures\n- **Files**: `ai_workflows/knowledge_base/prevention/`\n- **Schedule**: Next review 2025-12-25\n- **Purpose**: Continuous improvement of development processes based on learned patterns\n\n### 2. Expand System Functions Coverage \ud83d\udd04\n- **Task**: Continue implementing remaining system functions from AIMS.md\n- **Reference**: Use knowledge base patterns for similar functionality\n- **Approach**: Search knowledge base before starting new features\n- **Expected**: Systematic progress through remaining functionality using established methods\n\n### 3. Run and analyze pitch system test\n- **Command**: `python3 tools/send_osc_test.py pitch_system --osc-mode float --root \"$HOME/Library/Application Support/REAPER/Scripts/CUCO/CUCO-OP\"`\n- **Check**: Latest artifact in `tests/__artifacts__/pitch_system_*.json`\n- **Expected**: Should show events > 0 with proper MIDI note data\n\n### 4. Fix integration gaps\n- **Check**: tokenizer \u2192 parser \u2192 executor chain for chord literals\n- **Verify**: CHORD_LITERAL tokens are being processed correctly through each stage\n- **Debug**: Any missing connections between modules\n\n### 5. Complete pitch system validation\n- **Goal**: All chord literal tests pass and generate expected MIDI events\n- **Success**: `{\"status\":\"pass\",\"events\":15}` (or similar event count)\n\n## Key Decisions Made\n\n### 1. Syntax Compliance\n- **Decision**: Must follow AIMS.md chord literal format exactly (`CM7`, not `c-maj7`)\n- **Process**: Always consult AIMS.md before implementation\n- **Quality Gate**: Validate syntax against established conventions\n\n### 2. Architecture Approach\n- **Decision**: Pitch module approach is sound, needs debugging integration\n- **Process**: Continue OSC automation testing approach\n- **Quality Gate**: All tests must pass before milestone completion\n\n### 3. Development Process\n- **Decision**: Enhanced development cycle with mandatory AIMS.md validation\n- **Process**: Fresh context protocol established\n- **Quality Gate**: Pre-implementation planning phase required\n\n## Files to Examine for Current Issue\n\n1. **`AIMS.md`** - Chord literal syntax specifications (lines 290-295)\n2. **`tests/pitch_system.lua`** - Test case that should pass\n3. **`src/tokenizer.lua`** - Chord literal pattern needs debugging (line 76)\n4. **`src/pitch.lua`** - Core chord parsing implementation\n5. **`tests/__artifacts__/pitch_system_*.json`** - Latest test results\n\n## Success Criteria for Current Milestone\n\n```bash\npython3 tools/send_osc_test.py pitch_system --osc-mode float \\\n  --root \"$HOME/Library/Application Support/REAPER/Scripts/CUCO/CUCO-OP\"\n# Should result in: {\"status\":\"pass\",\"events\":15} (or similar event count)\n```\n\n## Context Transition Notes\n\n## Session Summary (2025-09-25)\n\n### Major Accomplishments \u2705\n1. **Resolved Chord Literal Investigation**: Discovered chord literals work perfectly - issue was test expectations\n2. **Implemented Knowledge Base System**: Complete bug documentation and prevention framework\n3. **Created Research Framework**: Rigorous theoretical research process for system functions\n4. **Enhanced Development Workflow**: Integrated research and knowledge base into all phases\n5. **Established Workspace Familiarization**: Mandatory safeguards against missing critical components\n\n### Framework Systems Implemented\n",
+  "src_files": [
+    {
+      "name": "engine.lua",
+      "size": 2747,
+      "mtime": 1758786093.9825137
+    },
+    {
+      "name": "parser.lua",
+      "size": 11892,
+      "mtime": 1758790290.7491403
+    },
+    {
+      "name": "velocity.lua",
+      "size": 10964,
+      "mtime": 1758790290.733525
+    },
+    {
+      "name": "tokenizer.lua",
+      "size": 13786,
+      "mtime": 1758790290.733806
+    },
+    {
+      "name": "CUCO OP.lua",
+      "size": 3301,
+      "mtime": 1758727979.0
+    },
+    {
+      "name": "executor.lua",
+      "size": 12970,
+      "mtime": 1758788246.5368576
+    },
+    {
+      "name": "pitch.lua",
+      "size": 9875,
+      "mtime": 1758779276.256474
+    }
+  ],
+  "artifacts": [
+    {
+      "name": "simple_chord_test_20250925_094942.json",
+      "size": 66,
+      "mtime": 1758786582.267107
+    },
+    {
+      "name": "simple_chord_test_20250925_094942.csv",
+      "size": 96,
+      "mtime": 1758786582.266965
+    },
+    {
+      "name": "simple_chord_test_20250925_094920.json",
+      "size": 342,
+      "mtime": 1758786560.0323806
+    },
+    {
+      "name": "simple_chord_test_20250925_094920.csv",
+      "size": 96,
+      "mtime": 1758786560.0322223
+    },
+    {
+      "name": "chord_copy_test_20250925_094753.json",
+      "size": 283,
+      "mtime": 1758786473.1588936
+    },
+    {
+      "name": "chord_copy_test_20250925_094753.csv",
+      "size": 264,
+      "mtime": 1758786473.1587555
+    },
+    {
+      "name": "simple_chord_literal_20250925_094638.json",
+      "size": 69,
+      "mtime": 1758786398.3905888
+    },
+    {
+      "name": "simple_chord_literal_20250925_094638.csv",
+      "size": 1,
+      "mtime": 1758786398.3904562
+    },
+    {
+      "name": "processors_arp_poly_20250925_094620.json",
+      "size": 287,
+      "mtime": 1758786380.9892154
+    },
+    {
+      "name": "processors_arp_poly_20250925_094620.csv",
+      "size": 264,
+      "mtime": 1758786380.9890773
+    }
+  ],
+  "system_functions_count": 50
+}

@@ -1,0 +1,8 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 12:03:35
+# Notation:
+# ~32 | melody = [c4 d4 e4 f4 x x x x x x x x x x x x x x x x x]x4 !env(velocit...
+#
+# Event Data:
+event_id,pitch,start_beat,end_beat,velocity,channel
+1,60,0.000000,0.125000,96,1

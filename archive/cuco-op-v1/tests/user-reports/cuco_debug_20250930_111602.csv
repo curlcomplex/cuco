@@ -1,0 +1,11 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-30 11:16:02
+# ERROR: ...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:241: Undefined variable: _
+# Notation:
+# ~16 @c.major
+# prog = [c4.maj7 _ . - _ . d4.min7 g4.7 c4.maj7]
+# ch1 = prog
+#
+# No events generated due to error
+error,message
+1,"...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:241: Undefined variable: _"

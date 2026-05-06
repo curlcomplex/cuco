@@ -1,0 +1,1 @@
+{"test":"minimal_processor","status":"fail","events":1,"diff":"count mismatch: expected 0, got 1"}

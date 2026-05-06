@@ -1,0 +1,13 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 17:35:55
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:322: Unexpected token: eof
+# Notation:
+# ~16
+# melody = [c4 d4 e4 f4]*4 !env(velocity, adsr, 0.2, 0.5,1,0.7)
+# melody = melody*2
+# melody2 = melody !retro()
+# ch1 = 
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:322: Unexpected token: eof"

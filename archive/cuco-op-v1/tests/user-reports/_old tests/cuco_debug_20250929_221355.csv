@@ -1,0 +1,11 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 22:13:55
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:322: Unexpected token: channel
+# Notation:
+# ~16
+# chord = [c3.maj . . .
+# ch1 = chord
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:322: Unexpected token: channel"

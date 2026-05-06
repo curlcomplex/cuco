@@ -1,0 +1,11 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 21:42:07
+# ERROR: ...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:831: attempt to call a nil value (field 'get_rng')
+# Notation:
+# ~16
+# melody = [c4 d4 e4 f4] !perm(messiaen,closed)
+# ch1 = melody
+#
+# No events generated due to error
+error,message
+1,"...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:831: attempt to call a nil value (field 'get_rng')"

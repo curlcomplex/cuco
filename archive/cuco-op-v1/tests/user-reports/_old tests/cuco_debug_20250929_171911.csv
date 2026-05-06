@@ -1,0 +1,13 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 17:19:11
+# ERROR: ... Support/REAPER/Scripts/CUCO/CUCO-OP/src/permutation.lua:43: retrograde not practical for sequences longer than 20 elements
+# Notation:
+# ~16
+# melody = [c4 d4 e4 f4]*4 !env(velocity, adsr, 0.2, 0.5,1,0.7)
+# melody = melody*2
+# melody2 = melody !retro()
+# ch1 = melody
+#
+# No events generated due to error
+error,message
+1,"... Support/REAPER/Scripts/CUCO/CUCO-OP/src/permutation.lua:43: retrograde not practical for sequences longer than 20 elements"

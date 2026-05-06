@@ -1,0 +1,1 @@
+{"test":"chained_assignment","status":"fail","events":4,"diff":"count mismatch: expected 0, got 4"}

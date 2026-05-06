@@ -1,0 +1,1 @@
+{"test":"chord_copy_test","status":"fail","events":8,"diff":"count mismatch: expected 2, got 8 | [1] exp(s=0.000000,e=1.000000,p=60,v=96,ch=2) vs got(s=0.000000,e=0.250000,p=60,v=96,ch=2) | [2] exp(s=1.000000,e=2.000000,p=62,v=96,ch=2) vs got(s=0.000000,e=0.250000,p=64,v=96,ch=2)"}

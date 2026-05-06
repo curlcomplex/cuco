@@ -1,0 +1,11 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-10-17 16:07:46
+# ERROR: ...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:242: Undefined variable: min
+# Notation:
+# ~16
+# test = [c3min]
+# ch1 = test
+#
+# No events generated due to error
+error,message
+1,"...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:242: Undefined variable: min"

@@ -1,0 +1,8 @@
+CUCO-OP Version Debug - 2025-09-29 14:50:57
+========================================
+
+Engine version: 0.1.0
+process_transpose function exists in executor
+Direct transpose test: input pitch 60, output pitch 67
+
+--- Full Engine Test ---

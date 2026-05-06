@@ -1,0 +1,16 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-30 12:55:56
+# ERROR: Engine not loaded: Failed to load engine: error loading module 'executor' from file '/Users/f.god/Library/Application Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua':
+	...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:1140: <eof> expected near 'end'
+# Notation:
+# ~16 @c.major
+# jazz = [c4.maj7 . d4.min7 g3.7 _] !retro
+# jazz2 = jazz !transpose(+12)
+# jazzmerge = [jazz jazz2]
+# ch1 = [jazzmerge !transpose(+7) jazzmerge] !transpose(+12) !arp(down, 8)
+# ch2 = [jazzmerge !transpose(+7) jazzmerge !retro()]*4 !arp(up, 4)
+#
+# No events generated due to error
+error,message
+1,"Engine not loaded: Failed to load engine: error loading module 'executor' from file '/Users/f.god/Library/Application Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua':
+	...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:1140: <eof> expected near 'end'"

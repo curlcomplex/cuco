@@ -1,0 +1,18 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 21:41:54
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got variable
+# Notation:
+# ~8
+# -- Chords with scale context
+# scaled = [c4.maj7 d4.min7 e4.min7] @f#.minor
+# ch1 = scaled
+# -- Chords with transpose
+# transposed = [c4.maj7 f4.7 g4.min7] !transpose(7)
+# ch2 = transposed
+# -- Chords with velocity envelope
+# velenv = [c4.maj7 d4.min7 e4.7 f4.maj7] !env(velocity,linear,50,120)
+# ch3 = velenv
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got variable"

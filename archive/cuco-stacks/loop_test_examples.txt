@@ -1,0 +1,32 @@
+CUCO-Stacks Loop Syntax Examples
+================================
+
+The new loop syntax uses |...| followed by a number:
+
+Basic loop examples:
+- ~4 |[c3 +3 +7]|4          # Loop a stack 4 times
+- ~4 |c3 d3 e3|3             # Loop 3 notes 3 times  
+- ~4 c3 |+3 +7|2 f3          # c3, then loop +3 +7 twice, then f3
+
+Your original example:
+- ~4 |[c3 +3 +7] x x!arp(zz, 16)|4
+
+How this works:
+1. |[c3 +3 +7] x x!arp(zz, 16)|4 creates a loop with 2 tokens inside:
+   - [c3 +3 +7] (a stack with chord c3, e3, g3)  
+   - x!arp(zz, 16) (inherit previous chord with zigzag arp)
+2. The whole thing loops 4 times
+3. Time is divided: if the total is 4 beats, each loop gets 1 beat
+4. Within each loop iteration, the 2 tokens share the time proportionally
+
+Nested possibilities:
+- ~4 ||c3 d3|2 e3|3          # Nested loops: (c3 d3 twice, then e3) repeated 3 times
+
+To test:
+1. Load the CUCO Stacks script in REAPER
+2. Create a MIDI item
+3. Set the item name to one of these examples (starting with ~)
+4. The script will generate the MIDI notes automatically
+
+Debug mode:
+- Add //debug to see parsing: ~4 |[c3 +3 +7] x x!arp(zz, 16)|4 //debug

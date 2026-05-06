@@ -1,0 +1,21 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 21:41:56
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got variable
+# Notation:
+# ~16 @c.major
+# -- Basic triads
+# basic = [c4.maj d4.min e4.dim f4.aug]
+# ch1 = basic
+# -- Seventh chords
+# sevenths = [c4.maj7 d4.min7 e4.7 f4.dim7]
+# ch2 = sevenths
+# -- Extended chords
+# extended = [c4.9 f4.maj9 g4.min9]
+# ch3 = extended
+# -- Different octaves
+# octaves = [c3.maj7 c4.maj7 c5.maj7]
+# ch4 = octaves
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got variable"

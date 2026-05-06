@@ -1,0 +1,11 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 10:56:40
+# ERROR: ...cation Support/REAPER/Scripts/CUCO/CUCO-OP/src/pitch.lua:75: Invalid chord symbol: c
+# Notation:
+# ~16 @c.major
+# melody = [c4 d4 e4 f4]
+# ch1 = melody
+#
+# No events generated due to error
+error,message
+1,"...cation Support/REAPER/Scripts/CUCO/CUCO-OP/src/pitch.lua:75: Invalid chord symbol: c"

@@ -1,0 +1,14 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 10:51:00
+# ERROR: ...cation Support/REAPER/Scripts/CUCO/CUCO-OP/src/pitch.lua:66: attempt to call a nil value (method 'gsub')
+# Notation:
+# ~16
+# chord1 = (c4 e4 g4)
+# chord2 = (d4 f4 a4)
+# chord3 = [C3maj7]
+# seq = [chord1 chord2]
+# ch1 = seq
+#
+# No events generated due to error
+error,message
+1,"...cation Support/REAPER/Scripts/CUCO/CUCO-OP/src/pitch.lua:66: attempt to call a nil value (method 'gsub')"

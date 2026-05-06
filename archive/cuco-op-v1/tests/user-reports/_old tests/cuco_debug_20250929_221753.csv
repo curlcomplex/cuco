@@ -1,0 +1,12 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 22:17:53
+# Notation:
+# ~16
+# chord = [c3.maj . . .]
+# ch1 = chord
+#
+# Event Data:
+event_id,pitch,start_beat,end_beat,velocity,channel
+1,48,0.000000,1.000000,96,1
+2,52,0.000000,1.000000,96,1
+3,55,0.000000,1.000000,96,1

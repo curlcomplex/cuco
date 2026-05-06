@@ -1,0 +1,17 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 21:52:53
+# Notation:
+# ~16
+# chord1 = (c4 e4 g4)
+# chord2 = (d4 f4 a4)
+# seq = [chord1 chord2]
+# ch1 = seq
+#
+# Event Data:
+event_id,pitch,start_beat,end_beat,velocity,channel
+1,60,0.000000,0.250000,96,1
+2,64,0.000000,0.250000,96,1
+3,67,0.000000,0.250000,96,1
+4,62,0.250000,0.500000,96,1
+5,65,0.250000,0.500000,96,1
+6,69,0.250000,0.500000,96,1

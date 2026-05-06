@@ -1,0 +1,12 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 12:33:20
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:288: Unexpected token: assign
+# Notation:
+# melody = [c4 d4 e4 f4] 
+# melody2 = melody !retro()
+# ch1 = merge = [melody !retro() melody2 !retro()] 
+# ch2 = 
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:288: Unexpected token: assign"

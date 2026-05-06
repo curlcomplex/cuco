@@ -1,0 +1,14 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 11:55:32
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:288: Unexpected token: processor
+# Notation:
+# ~16 @c.major
+# melody = [d3 d2 e4 f4 c3.maj d#3.maj]  !env(velocity,adsr,0.2,0.1,0.7,0.3)
+# melody2 = melody !transpose(-7) 
+# merge = [melody melody2]
+# merge = !arp(up, 3)
+# ch1 = merge
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:288: Unexpected token: processor"

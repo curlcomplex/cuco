@@ -1,0 +1,12 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-30 11:37:28
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:322: Unexpected token: assign
+# Notation:
+# ~8
+# jazz = [c4.maj7 a4.min7 d4.min7 g4.7]
+# ch1 = jazz
+# c2 = jazz !rotate(-2) !arp(up, 8)
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:322: Unexpected token: assign"

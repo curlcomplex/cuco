@@ -1,0 +1,9 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 22:24:03
+# Notation:
+# ~16 @c.minor
+# melody = [c2.min f2.maj g2.maj d#2.min]
+#
+# Event Data:
+event_id,pitch,start_beat,end_beat,velocity,channel
+# No events generated

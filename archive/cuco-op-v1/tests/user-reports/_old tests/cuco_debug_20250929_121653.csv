@@ -1,0 +1,11 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 12:16:53
+# ERROR: ...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:214: Undefined variable: c
+# Notation:
+# ~16
+# melody = [f4 c4 e4 d4 c.maj] !sort(asc,type=pitch)
+# ch1 = melody
+#
+# No events generated due to error
+error,message
+1,"...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:214: Undefined variable: c"

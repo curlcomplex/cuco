@@ -1,0 +1,15 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 11:25:44
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got variable
+# Notation:
+# ~16 @c.major
+# -- Basic melody
+# melody = [c4 d4 e4 f4]
+# ch1 = melody
+# -- Chord progression
+# chords = [c4.maj7 f4.maj7 g4.7]
+# ch2 = chords
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got variable"

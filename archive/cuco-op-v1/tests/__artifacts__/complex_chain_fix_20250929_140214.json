@@ -1,0 +1,1 @@
+{"test":"complex_chain_fix","status":"fail","events":4,"diff":"count mismatch: expected 0, got 4"}

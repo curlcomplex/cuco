@@ -1,0 +1,9 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 12:03:28
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got grid
+# Notation:
+# CUCO 12:02:59 - ~32 | melody = [c4 d4 e4 f4 x x x x x x x x x x x x x x x x x]x4 !env(velocit...
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got grid"

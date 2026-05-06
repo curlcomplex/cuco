@@ -1,0 +1,13 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-30 11:51:03
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got variable
+# Notation:
+# ~16
+# -- Test that chords assigned to multiple channels are stacked (simultaneous)
+# jazz = [c4.maj7 d4.min7]
+# ch1 = jazz
+# ch2 = jazz !transpose(12)
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got variable"

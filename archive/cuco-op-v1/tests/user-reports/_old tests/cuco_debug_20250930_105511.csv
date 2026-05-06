@@ -1,0 +1,12 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-30 10:55:11
+# ERROR: ...on Support/REAPER/Scripts/CUCO/CUCO-OP/src/tokenizer.lua:266: attempt to concatenate a nil value (local 'offset_val')
+# Notation:
+# ~16 @c.major
+# ch1 = [c4 d4 e4 f4]
+# ch2 = [c#4 d#4 e4 f#4]
+# ch3 = [c-4 d-4 e4 f-4]
+#
+# No events generated due to error
+error,message
+1,"...on Support/REAPER/Scripts/CUCO/CUCO-OP/src/tokenizer.lua:266: attempt to concatenate a nil value (local 'offset_val')"

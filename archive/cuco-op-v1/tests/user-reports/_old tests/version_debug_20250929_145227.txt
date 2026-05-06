@@ -1,0 +1,14 @@
+CUCO-OP Version Debug - 2025-09-29 14:52:27
+========================================
+
+Engine version: 0.1.0
+process_transpose function exists in executor
+Direct transpose test: input pitch 60, output pitch 67
+
+--- Full Engine Test ---
+AST generated: YES
+Plan events: 0
+No events generated
+melody variable exists with 0 events
+
+Debug complete. Check: /Users/f.god/Library/Application Support/REAPER/Scripts/CUCO/CUCO-OP/tests/user-reports/version_debug_20250929_145227.txt

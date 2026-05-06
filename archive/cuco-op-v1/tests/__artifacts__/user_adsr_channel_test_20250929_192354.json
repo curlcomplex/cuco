@@ -1,0 +1,1 @@
+{"test":"user_adsr_channel_test","status":"fail","events":2,"diff":"[2] exp(s=2.000000,e=4.000000,p=60,v=89,ch=1) vs got(s=2.000000,e=4.000000,p=60,v=63,ch=1)"}

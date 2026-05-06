@@ -1,0 +1,12 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-30 11:38:20
+# ERROR: ...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got chord_open
+# Notation:
+# ~8
+# jazz = [c4.maj7 a4.min7 d4.min7 g4.7]
+# ch1 = jazz
+# ch2 = [c4.maj7 a4.min7 d4.min7 g4.7] ! transpose(+24)
+#
+# No events generated due to error
+error,message
+1,"...ation Support/REAPER/Scripts/CUCO/CUCO-OP/src/parser.lua:108: Expected assign but got chord_open"

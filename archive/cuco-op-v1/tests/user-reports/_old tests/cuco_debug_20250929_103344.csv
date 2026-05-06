@@ -1,0 +1,11 @@
+# CUCO-OP Debug Export
+# Timestamp: 2025-09-29 10:33:44
+# ERROR: ...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:279: attempt to index a nil value (global 'tonality')
+# Notation:
+# ~16 @f#.dorian
+# melody = [c4 d4 e4 f4 c#3 d3 d#3 e3 e#3 f3 f#3 g3 g#3 a3 a#3 b3 ]
+# ch1 = melody
+#
+# No events generated due to error
+error,message
+1,"...ion Support/REAPER/Scripts/CUCO/CUCO-OP/src/executor.lua:279: attempt to index a nil value (global 'tonality')"

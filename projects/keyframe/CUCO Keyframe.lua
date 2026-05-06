@@ -654,8 +654,10 @@ local function loop()
   local content_w = reaper.ImGui_GetContentRegionAvail(ctx)
   local name_w = math.max(120, content_w - RIGHT_STRIP_W)
 
-  local sel_flags = (reaper.ImGui_SelectableFlags_AllowDoubleClick()
-                     | reaper.ImGui_SelectableFlags_AllowItemOverlap())
+  -- AllowItemOverlap was deprecated upstream in favor of SetNextItemAllowOverlap()
+  -- (called per-item, before the widget). Fall back gracefully on older ReaImGui.
+  local set_overlap = reaper.ImGui_SetNextItemAllowOverlap
+  local sel_flags = reaper.ImGui_SelectableFlags_AllowDoubleClick()
 
   for _, rec in ipairs(filtered) do
     local i, s, num = rec.i, rec.s, rec.n
@@ -682,6 +684,7 @@ local function loop()
       end
     else
       local label = string.format("  %2d   %s", num, (s.name ~= "" and s.name) or "(unnamed)")
+      if set_overlap then set_overlap(ctx) end
       if reaper.ImGui_Selectable(ctx, label, sel, sel_flags, name_w, 0) then
         if activeSnap ~= i then recall_staged = false end
         activeSnap = i

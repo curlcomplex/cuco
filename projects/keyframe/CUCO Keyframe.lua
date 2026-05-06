@@ -43,6 +43,10 @@ local function setStatus(msg, duration)
   status_until = reaper.time_precise() + (duration or 3.0)
 end
 
+-- Inline-edit state for the keyframe-list row name
+local editing_idx          = nil   -- index of snapshot currently being renamed inline
+local editing_just_started = false -- one-frame flag to grab keyboard focus
+
 -------------------------------------
 -- Helpers: Names & GUIDs
 -------------------------------------
@@ -645,27 +649,92 @@ local function loop()
     end
   end
 
+  -- Reserve right strip for time + action buttons. Tuned for default ImGui font.
+  local RIGHT_STRIP_W = 180
+  local content_w = reaper.ImGui_GetContentRegionAvail(ctx)
+  local name_w = math.max(120, content_w - RIGHT_STRIP_W)
+
+  local sel_flags = (reaper.ImGui_SelectableFlags_AllowDoubleClick()
+                     | reaper.ImGui_SelectableFlags_AllowItemOverlap())
+
   for _, rec in ipairs(filtered) do
     local i, s, num = rec.i, rec.s, rec.n
-    local sel = (i==activeSnap)
-    if reaper.ImGui_Selectable(ctx, string.format("%d: %s", num, s.name), sel) then
-      if activeSnap ~= i then
-        recall_staged = false
+    local sel = (i == activeSnap)
+
+    reaper.ImGui_PushID(ctx, i)
+
+    if editing_idx == i then
+      -- Inline rename. Grab keyboard on first frame, commit on Enter or
+      -- click-away (only if value actually changed); Esc reverts.
+      if editing_just_started then
+        reaper.ImGui_SetKeyboardFocusHere(ctx)
+        editing_just_started = false
       end
-      activeSnap = i
+      reaper.ImGui_SetNextItemWidth(ctx, name_w)
+      local _, nm = reaper.ImGui_InputText(ctx, "##edit", s.name or "", 256,
+        reaper.ImGui_InputTextFlags_EnterReturnsTrue() | reaper.ImGui_InputTextFlags_AutoSelectAll())
+      if reaper.ImGui_IsItemDeactivated(ctx) then
+        if reaper.ImGui_IsItemDeactivatedAfterEdit(ctx) then
+          s.name = nm
+          saveSnapshots()
+        end
+        editing_idx = nil
+      end
+    else
+      local label = string.format("  %2d   %s", num, (s.name ~= "" and s.name) or "(unnamed)")
+      if reaper.ImGui_Selectable(ctx, label, sel, sel_flags, name_w, 0) then
+        if activeSnap ~= i then recall_staged = false end
+        activeSnap = i
+        if reaper.ImGui_IsMouseDoubleClicked(ctx, 0) then
+          editing_idx = i
+          editing_just_started = true
+        end
+      end
     end
-  end
 
-  reaper.ImGui_Separator(ctx)
-
-  -- Active snapshot details
-  if activeSnap>0 and snapshots[activeSnap] then
-    local s = snapshots[activeSnap]
-    reaper.ImGui_Text(ctx, 'Name:')
-    local ch2, nm = reaper.ImGui_InputText(ctx, '##name', s.name or "", 256)
-    if ch2 then s.name = nm; saveSnapshots() end
+    -- Time, muted, fixed-ish slot
     reaper.ImGui_SameLine(ctx)
-    reaper.ImGui_Text(ctx, string.format('@ %.3f', s.time or 0))
+    reaper.ImGui_TextColored(ctx, 0x888888FF, string.format("@%.3f", s.time or 0))
+
+    -- Per-row action buttons. SmallButton is compact; tooltips clarify intent.
+    reaper.ImGui_SameLine(ctx)
+    if reaper.ImGui_SmallButton(ctx, "R") then
+      if activeSnap ~= i then recall_staged = false end
+      activeSnap = i
+      RecallSnapshot(s)
+    end
+    if reaper.ImGui_IsItemHovered(ctx) then
+      reaper.ImGui_SetTooltip(ctx, "Recall (preview snapshot; click again to cancel)")
+    end
+
+    reaper.ImGui_SameLine(ctx)
+    if reaper.ImGui_SmallButton(ctx, "O") then
+      activeSnap = i
+      OverwriteSnapshot()
+      setStatus(string.format("Overwrote '%s'", s.name or "?"))
+    end
+    if reaper.ImGui_IsItemHovered(ctx) then
+      reaper.ImGui_SetTooltip(ctx, "Overwrite snapshot from current FX state")
+    end
+
+    reaper.ImGui_SameLine(ctx)
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0x803030FF)
+    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), 0xB04040FF)
+    if reaper.ImGui_SmallButton(ctx, "x") then
+      activeSnap = i
+      DeleteSnapshot()
+      reaper.ImGui_PopStyleColor(ctx, 2)
+      reaper.ImGui_PopID(ctx)
+      -- snapshots indices shifted; remaining `rec` entries reference stale i.
+      -- Break and let next frame rebuild `filtered` with fresh indices.
+      break
+    end
+    reaper.ImGui_PopStyleColor(ctx, 2)
+    if reaper.ImGui_IsItemHovered(ctx) then
+      reaper.ImGui_SetTooltip(ctx, "Delete snapshot")
+    end
+
+    reaper.ImGui_PopID(ctx)
   end
 
   reaper.ImGui_Separator(ctx)

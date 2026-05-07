@@ -14,7 +14,7 @@ Caveman:
 - **Fresh handover** = pending work from past session. `.claude/hooks/fresh-handovers.cjs` reads IG nodes with `properties.handover_pending: true`. Surface to user. Ask "start it?".
 - **IG flag schema.** `properties.handover_pending: true` + `handover_doc: <path>` + `handover_session: s<NNN>`. Doc lives in `.planning/handovers/<DATE>-<NODE-ID>-<slug>.md`.
 - **After consuming a handover.** Clear flag: `node scripts/ig/cuco_scripts_ig.cjs update <id> --props '{"handover_pending":false}'`.
-- **End of session.** `/handover` writes the doc + flags umbrella IG node.
+- **End of session.** `/handover-prompt` writes the next-session opener + flags umbrella IG node. Opener leads with protocols-first block; reconciles prior handovers in-place (no archive moves).
 - **Mid-session out-of-scope find.** `/handover-log <NODE-ID>` (or bare to create a node). Writes a deferred-work doc, flags node, returns to current work in one line. Do not derail.
 - **Stop hook watches.** Saying "out of scope" / "for another session" / "park for later" / etc. without invoking `/handover-log` → hook blocks stop, demands either a handover-log call or an explicit `HANDOVER-LOG-NUDGE: FALSE-POSITIVE` marker. Bypass with `HANDOVER_NUDGE_OFF=1`.
 

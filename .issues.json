@@ -364,6 +364,90 @@
         "worktree": "CUCO"
       },
       "priority": 2
+    },
+    {
+      "id": "F-009",
+      "type": "feature",
+      "status": "open",
+      "title": "CUCO Auto Prefix",
+      "description": "Auto-prefix workflow for items/tracks. Lives in projects/auto-prefix/.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:47:06.507Z",
+      "updated_at": "2026-05-07T16:47:06.507Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "F-010",
+      "type": "feature",
+      "status": "open",
+      "title": "Client Feedback",
+      "description": "Client-feedback workflow — add comments to items, export CSV. Lives in projects/client-feedback/ (Add Comment + Export CSV scripts).",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:47:06.516Z",
+      "updated_at": "2026-05-07T16:47:06.516Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "F-011",
+      "type": "feature",
+      "status": "open",
+      "title": "CUCO-DIFF",
+      "description": "Project diff utility. Lives in projects/cuco-diff/.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:47:06.524Z",
+      "updated_at": "2026-05-07T16:47:06.524Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "F-012",
+      "type": "feature",
+      "status": "open",
+      "title": "CUCO Tidal",
+      "description": "Tidal-style live coding integration for REAPER. Lives in projects/cuco-tidal/ (current v1.4.1).",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:47:06.532Z",
+      "updated_at": "2026-05-07T16:47:06.532Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "F-013",
+      "type": "feature",
+      "status": "open",
+      "title": "CUCO OP 2",
+      "description": "OP-style sampler/sequencer interface. Lives in projects/curlop/ (CUCO OP 2.lua).",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:47:06.539Z",
+      "updated_at": "2026-05-07T16:47:06.539Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "F-014",
+      "type": "feature",
+      "status": "open",
+      "title": "CUCO Tidal Notation",
+      "description": "Tidal notation parser/renderer. Lives in projects/tidal-notation/ (current 0.8.1).",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:47:06.548Z",
+      "updated_at": "2026-05-07T16:47:06.548Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
     }
   ],
   "edges": [
@@ -456,6 +540,13 @@
       "source": "SPEC-003",
       "target": "F-001",
       "type": "relates_to",
+      "properties": {}
+    },
+    {
+      "id": "ie_movpy9fhxopp",
+      "source": "F-005",
+      "target": "F-002",
+      "type": "part_of",
       "properties": {}
     }
   ]

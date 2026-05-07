@@ -448,6 +448,171 @@
       "properties": {
         "worktree": "CUCO"
       }
+    },
+    {
+      "id": "T-007",
+      "type": "task",
+      "status": "fixed",
+      "title": "Phase 1 — bootstrap .planning/ tree",
+      "description": "Create .planning/ directory tree, migrate open phase plan and current handover into canonical locations. No GSD bootstrap. Shipped as commit 9da5904.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T19:59:47.025Z",
+      "updated_at": "2026-05-07T19:59:47.025Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-008",
+      "type": "task",
+      "status": "fixed",
+      "title": "Phase 5a — port IG CLI + seed initial graph",
+      "description": "Port scripts/ig/cuco_scripts_ig.cjs from CURLOP (renamed for project distinctness, examples retargeted). Seed .issues.json with 25 nodes / 13 edges covering milestones, features, knowledge, specs, concept, and open tasks from current handover. Shipped as commit 8ad12d1.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T19:59:47.034Z",
+      "updated_at": "2026-05-07T19:59:47.034Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 2
+    },
+    {
+      "id": "T-009",
+      "type": "task",
+      "status": "fixed",
+      "title": "Phase 2 — write CLAUDE.md operational spine",
+      "description": "Auto-loaded operational rules. ABSOLUTE BANs derived from CUCO failure modes. Golden Rule for ReaImGui+SDK docs. IG schema + write surface. Session workflow with intent-verify pass and immediate-IG-logging rule. Shipped as commit 83bc15c.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T19:59:47.043Z",
+      "updated_at": "2026-05-07T19:59:47.043Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 2
+    },
+    {
+      "id": "T-010",
+      "type": "task",
+      "status": "fixed",
+      "title": "Phase 3 — IG-aware hooks",
+      "description": "Three hooks wired in .claude/settings.json: session-start-context.cjs (IG snapshot, ~2.7KB output), fresh-handovers.cjs (handover_pending: true surface), handover-log-nudge.cjs (Stop hook blocking park-phrases). Shipped as commit 83bc15c.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T19:59:47.051Z",
+      "updated_at": "2026-05-07T19:59:47.051Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 2
+    },
+    {
+      "id": "T-011",
+      "type": "task",
+      "status": "fixed",
+      "title": "Phase 4 — slash commands",
+      "description": "Six commands in .claude/commands/: /rules, /ig-help, /handover (rewritten), /handover-log, /fresh-eyes, /park-decision. Shipped as commit 83bc15c.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T19:59:47.060Z",
+      "updated_at": "2026-05-07T19:59:47.060Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-012",
+      "type": "task",
+      "status": "fixed",
+      "title": "Populate IG with all 14 scripts as features",
+      "description": "Initial seed had 8 features; survey of projects/ surfaced 6 missing scripts (Auto Prefix, Client Feedback, CUCO-DIFF, CUCO Tidal, CUCO OP 2, Tidal Notation). Added F-009..F-014 + edged F-005 (Apply track FX) part_of F-002 (Audiosuite+) since it lives inside the same project dir. Shipped as commit d931c24.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T19:59:47.068Z",
+      "updated_at": "2026-05-07T19:59:47.068Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-013",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 5b — write ADRs + specs",
+      "description": "Write the three ADRs (shared-theme-module, random-walk-classifier-strategy, audiosuite-plus-chain-on-takes) and the three specs (shared-theme-contract, reaimgui-usage, reaper-api-conventions) — they currently exist as IG nodes pointing at .planning/specs/<file>.md paths that don't exist. Defer-by-design: write each one when the relevant work next surfaces, not all upfront.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T19:59:47.076Z",
+      "updated_at": "2026-05-07T19:59:47.076Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-014",
+      "type": "task",
+      "status": "fixed",
+      "title": "Keyframe v0.6 polish pass",
+      "description": "Rename, ReaPack header, write-loop guard, persistence. Redesigned keyframe list with per-row actions, inline rename. Shipped as commits 6ba309f + c668659.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T19:59:47.085Z",
+      "updated_at": "2026-05-07T19:59:47.085Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-015",
+      "type": "task",
+      "status": "fixed",
+      "title": "Keyframe — Prune stale + status feedback",
+      "description": "'Prune stale' button to clear keyframes for removed FX/params. Transient status line for prune feedback. Shipped as commits d29c8bf + 50f36d6.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T19:59:47.093Z",
+      "updated_at": "2026-05-07T19:59:47.093Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-016",
+      "type": "task",
+      "status": "fixed",
+      "title": "Keyframe — ReaImGui modern-contract fixes",
+      "description": "Fix UI crash when FX/params are removed (cb0ecb1). Fix list crash on ReaImGui without AllowItemOverlap flag (1292e94). Fix Begin/End pattern to match modern ReaImGui contract (fd3750f). Three commits driven by ReaImGui binding divergence — surface area for K-005.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T19:59:47.102Z",
+      "updated_at": "2026-05-07T19:59:47.102Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 2
+    },
+    {
+      "id": "K-005",
+      "type": "knowledge",
+      "status": "open",
+      "title": "ReaImGui Begin/End modern contract",
+      "description": "ReaImGui's modern Begin/End binding diverges from upstream Dear ImGui's contract. End must be called only when Begin returns truthy. Pre-modern code patterns that called End unconditionally crash on current builds. Audit any reaper.ImGui_Begin* call site for matching End paths. See commit fd3750f for pattern fix. Related: K-003 (general ReaImGui divergence).",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T19:59:47.111Z",
+      "updated_at": "2026-05-07T19:59:47.111Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 1
     }
   ],
   "edges": [
@@ -547,6 +712,83 @@
       "source": "F-005",
       "target": "F-002",
       "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movwu1m85sc0",
+      "source": "T-007",
+      "target": "M-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movwu1mh78bx",
+      "source": "T-008",
+      "target": "M-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movwu1mpnwid",
+      "source": "T-009",
+      "target": "M-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movwu1mx9p3w",
+      "source": "T-010",
+      "target": "M-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movwu1n6lc3p",
+      "source": "T-011",
+      "target": "M-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movwu1nejtcw",
+      "source": "T-012",
+      "target": "M-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movwu1nr6tk4",
+      "source": "T-013",
+      "target": "M-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movwu1nzq7io",
+      "source": "T-014",
+      "target": "F-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movwu1o6s2r2",
+      "source": "T-015",
+      "target": "F-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movwu1oedert",
+      "source": "T-016",
+      "target": "F-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movwu1on2yku",
+      "source": "K-005",
+      "target": "T-016",
+      "type": "revealed_by",
       "properties": {}
     }
   ]

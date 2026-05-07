@@ -1,0 +1,462 @@
+{
+  "version": "0.3.0",
+  "nodes": [
+    {
+      "id": "M-001",
+      "type": "milestone",
+      "status": "open",
+      "title": "Random Walk v1.0 distribution-ready",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:46.936Z",
+      "updated_at": "2026-05-07T16:25:46.936Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 2
+    },
+    {
+      "id": "M-002",
+      "type": "milestone",
+      "status": "open",
+      "title": "Audiosuite+ Phase 2 (chain-on-takes)",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:46.944Z",
+      "updated_at": "2026-05-07T16:25:46.944Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 2
+    },
+    {
+      "id": "M-003",
+      "type": "milestone",
+      "status": "open",
+      "title": "CUCO project-management migration",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:46.952Z",
+      "updated_at": "2026-05-07T16:25:46.952Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 3
+    },
+    {
+      "id": "F-001",
+      "type": "feature",
+      "status": "open",
+      "title": "Random Walk",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:46.963Z",
+      "updated_at": "2026-05-07T16:25:46.963Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "F-002",
+      "type": "feature",
+      "status": "open",
+      "title": "Audiosuite+",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:46.971Z",
+      "updated_at": "2026-05-07T16:25:46.971Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "F-003",
+      "type": "feature",
+      "status": "open",
+      "title": "Keyframe",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:46.979Z",
+      "updated_at": "2026-05-07T16:25:46.979Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "F-004",
+      "type": "feature",
+      "status": "open",
+      "title": "Metadata Match Criteria",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:46.987Z",
+      "updated_at": "2026-05-07T16:25:46.987Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "F-005",
+      "type": "feature",
+      "status": "open",
+      "title": "Apply track FX to new take",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:46.996Z",
+      "updated_at": "2026-05-07T16:25:46.996Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "F-006",
+      "type": "feature",
+      "status": "open",
+      "title": "Archival",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.005Z",
+      "updated_at": "2026-05-07T16:25:47.005Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "F-007",
+      "type": "feature",
+      "status": "open",
+      "title": "Import Session Track",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.014Z",
+      "updated_at": "2026-05-07T16:25:47.014Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "F-008",
+      "type": "feature",
+      "status": "open",
+      "title": "Shared theme module",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.024Z",
+      "updated_at": "2026-05-07T16:25:47.024Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "K-001",
+      "type": "knowledge",
+      "status": "open",
+      "title": "TrackFX_GetParam returns 3 values, not 4",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.032Z",
+      "updated_at": "2026-05-07T16:25:47.032Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 1
+    },
+    {
+      "id": "K-002",
+      "type": "knowledge",
+      "status": "open",
+      "title": "TrackFX_GetNumParamSteps does not exist",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.040Z",
+      "updated_at": "2026-05-07T16:25:47.040Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 1
+    },
+    {
+      "id": "K-003",
+      "type": "knowledge",
+      "status": "open",
+      "title": "ReaImGui diverges from upstream Dear ImGui",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.048Z",
+      "updated_at": "2026-05-07T16:25:47.048Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 1
+    },
+    {
+      "id": "K-004",
+      "type": "knowledge",
+      "status": "open",
+      "title": "Plugin library file is 57MB — never full-read",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.056Z",
+      "updated_at": "2026-05-07T16:25:47.056Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 1
+    },
+    {
+      "id": "SPEC-001",
+      "type": "specification",
+      "status": "open",
+      "title": "shared-theme-contract",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.064Z",
+      "updated_at": "2026-05-07T16:25:47.064Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "SPEC-002",
+      "type": "specification",
+      "status": "open",
+      "title": "reaimgui-usage",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.072Z",
+      "updated_at": "2026-05-07T16:25:47.072Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "SPEC-003",
+      "type": "specification",
+      "status": "open",
+      "title": "reaper-api-conventions",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.081Z",
+      "updated_at": "2026-05-07T16:25:47.081Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "CON-001",
+      "type": "concept",
+      "status": "open",
+      "title": "Random Walk weighted-distribution shape picker",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.089Z",
+      "updated_at": "2026-05-07T16:25:47.089Z",
+      "properties": {
+        "worktree": "CUCO"
+      }
+    },
+    {
+      "id": "T-001",
+      "type": "task",
+      "status": "open",
+      "title": "Commit-staging pass for accumulated working-tree changes",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.096Z",
+      "updated_at": "2026-05-07T16:25:47.096Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 2,
+      "ready": true
+    },
+    {
+      "id": "T-002",
+      "type": "task",
+      "status": "open",
+      "title": "Random Walk plugin metadata coverage",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.104Z",
+      "updated_at": "2026-05-07T16:25:47.104Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-003",
+      "type": "task",
+      "status": "open",
+      "title": "Theme retrofit runtime verification",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.112Z",
+      "updated_at": "2026-05-07T16:25:47.112Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-004",
+      "type": "task",
+      "status": "open",
+      "title": "Bridge JSON decoder patches",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.121Z",
+      "updated_at": "2026-05-07T16:25:47.121Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 4
+    },
+    {
+      "id": "T-005",
+      "type": "task",
+      "status": "open",
+      "title": "Random Walk distribution polish",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.129Z",
+      "updated_at": "2026-05-07T16:25:47.129Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-006",
+      "type": "task",
+      "status": "open",
+      "title": "Audiosuite+ Phase 2 execution",
+      "description": "",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-05-07T16:25:47.137Z",
+      "updated_at": "2026-05-07T16:25:47.137Z",
+      "properties": {
+        "worktree": "CUCO"
+      },
+      "priority": 2
+    }
+  ],
+  "edges": [
+    {
+      "id": "ie_movp6u8apld6",
+      "source": "T-001",
+      "target": "M-003",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_movp6u8kcfd2",
+      "source": "T-006",
+      "target": "M-002",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_movp6u8s6gbq",
+      "source": "T-005",
+      "target": "M-001",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_movp6u90vw4e",
+      "source": "T-002",
+      "target": "M-001",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_movp6u98a81o",
+      "source": "T-006",
+      "target": "F-002",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movp6u9howt9",
+      "source": "T-005",
+      "target": "F-001",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movp6u9ocobo",
+      "source": "T-002",
+      "target": "F-001",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movp6u9xuffu",
+      "source": "T-003",
+      "target": "F-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movp6ua4yq0f",
+      "source": "T-003",
+      "target": "F-004",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_movp6uacu8ax",
+      "source": "CON-001",
+      "target": "F-001",
+      "type": "relates_to",
+      "properties": {}
+    },
+    {
+      "id": "ie_movp6uakyju4",
+      "source": "SPEC-001",
+      "target": "F-008",
+      "type": "relates_to",
+      "properties": {}
+    },
+    {
+      "id": "ie_movp6uaukucc",
+      "source": "SPEC-002",
+      "target": "F-001",
+      "type": "relates_to",
+      "properties": {}
+    },
+    {
+      "id": "ie_movp6ub17i4a",
+      "source": "SPEC-003",
+      "target": "F-001",
+      "type": "relates_to",
+      "properties": {}
+    }
+  ]
+}

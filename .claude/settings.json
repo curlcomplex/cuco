@@ -1,0 +1,28 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/Users/f.god/Library/Application Support/REAPER/Scripts/CUCO/.claude/hooks/session-start-context.cjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"/Users/f.god/Library/Application Support/REAPER/Scripts/CUCO/.claude/hooks/fresh-handovers.cjs\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"/Users/f.god/Library/Application Support/REAPER/Scripts/CUCO/.claude/hooks/handover-log-nudge.cjs\""
+          }
+        ]
+      }
+    ]
+  }
+}

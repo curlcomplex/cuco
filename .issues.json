@@ -6,11 +6,11 @@
       "type": "milestone",
       "status": "open",
       "title": "Random Walk v1.0 distribution-ready",
-      "description": "",
+      "description": "Random Walk reaches a distributable state: classifier polish, discoverable maintenance menu, first-run hint, README, ReaPack metadata.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:46.936Z",
-      "updated_at": "2026-05-07T16:25:46.936Z",
+      "created_at": "2026-05-07T16:33:01.242Z",
+      "updated_at": "2026-05-07T16:33:01.242Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -21,11 +21,11 @@
       "type": "milestone",
       "status": "open",
       "title": "Audiosuite+ Phase 2 (chain-on-takes)",
-      "description": "",
+      "description": "Phase 2 architecture (chain on takes, lazy materialization on preset-load/preview) — decision made, execution pending.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:46.944Z",
-      "updated_at": "2026-05-07T16:25:46.944Z",
+      "created_at": "2026-05-07T16:33:01.251Z",
+      "updated_at": "2026-05-07T16:33:01.251Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -36,11 +36,11 @@
       "type": "milestone",
       "status": "open",
       "title": "CUCO project-management migration",
-      "description": "",
+      "description": "Adopt CURLOP's IG-based project-management method. See .planning/MIGRATION-PLAN.md.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:46.952Z",
-      "updated_at": "2026-05-07T16:25:46.952Z",
+      "created_at": "2026-05-07T16:33:01.260Z",
+      "updated_at": "2026-05-07T16:33:01.260Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -51,11 +51,11 @@
       "type": "feature",
       "status": "open",
       "title": "Random Walk",
-      "description": "",
+      "description": "Param random-walk GUI with classifier-driven family detection, weighted shape distribution, seed history.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:46.963Z",
-      "updated_at": "2026-05-07T16:25:46.963Z",
+      "created_at": "2026-05-07T16:33:01.324Z",
+      "updated_at": "2026-05-07T16:33:01.324Z",
       "properties": {
         "worktree": "CUCO"
       }
@@ -65,11 +65,11 @@
       "type": "feature",
       "status": "open",
       "title": "Audiosuite+",
-      "description": "",
+      "description": "Audiosuite-style FX chain workflow with preset/preview support.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:46.971Z",
-      "updated_at": "2026-05-07T16:25:46.971Z",
+      "created_at": "2026-05-07T16:33:01.335Z",
+      "updated_at": "2026-05-07T16:33:01.335Z",
       "properties": {
         "worktree": "CUCO"
       }
@@ -79,11 +79,11 @@
       "type": "feature",
       "status": "open",
       "title": "Keyframe",
-      "description": "",
+      "description": "Param keyframe capture/recall across FX chains.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:46.979Z",
-      "updated_at": "2026-05-07T16:25:46.979Z",
+      "created_at": "2026-05-07T16:33:01.351Z",
+      "updated_at": "2026-05-07T16:33:01.351Z",
       "properties": {
         "worktree": "CUCO"
       }
@@ -93,11 +93,11 @@
       "type": "feature",
       "status": "open",
       "title": "Metadata Match Criteria",
-      "description": "",
+      "description": "Item metadata matching workflow for batch operations.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:46.987Z",
-      "updated_at": "2026-05-07T16:25:46.987Z",
+      "created_at": "2026-05-07T16:33:01.360Z",
+      "updated_at": "2026-05-07T16:33:01.360Z",
       "properties": {
         "worktree": "CUCO"
       }
@@ -107,11 +107,11 @@
       "type": "feature",
       "status": "open",
       "title": "Apply track FX to new take",
-      "description": "",
+      "description": "Apply track FX to a new take retaining take FX and envelopes.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:46.996Z",
-      "updated_at": "2026-05-07T16:25:46.996Z",
+      "created_at": "2026-05-07T16:33:01.368Z",
+      "updated_at": "2026-05-07T16:33:01.368Z",
       "properties": {
         "worktree": "CUCO"
       }
@@ -121,11 +121,11 @@
       "type": "feature",
       "status": "open",
       "title": "Archival",
-      "description": "",
+      "description": "Session archival workflow.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.005Z",
-      "updated_at": "2026-05-07T16:25:47.005Z",
+      "created_at": "2026-05-07T16:33:01.377Z",
+      "updated_at": "2026-05-07T16:33:01.377Z",
       "properties": {
         "worktree": "CUCO"
       }
@@ -135,11 +135,11 @@
       "type": "feature",
       "status": "open",
       "title": "Import Session Track",
-      "description": "",
+      "description": "Import a track from another REAPER session.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.014Z",
-      "updated_at": "2026-05-07T16:25:47.014Z",
+      "created_at": "2026-05-07T16:33:01.386Z",
+      "updated_at": "2026-05-07T16:33:01.386Z",
       "properties": {
         "worktree": "CUCO"
       }
@@ -149,11 +149,11 @@
       "type": "feature",
       "status": "open",
       "title": "Shared theme module",
-      "description": "",
+      "description": "projects/_shared/cuco_imgui_theme.lua — palette + theme helpers consumed by all CUCO ImGui scripts.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.024Z",
-      "updated_at": "2026-05-07T16:25:47.024Z",
+      "created_at": "2026-05-07T16:33:01.396Z",
+      "updated_at": "2026-05-07T16:33:01.396Z",
       "properties": {
         "worktree": "CUCO"
       }
@@ -163,11 +163,11 @@
       "type": "knowledge",
       "status": "open",
       "title": "TrackFX_GetParam returns 3 values, not 4",
-      "description": "",
+      "description": "REAPER's TrackFX_GetParam returns (value, min, max) — 3 values. Destructuring as 4 (the original buggy code did `local _, _, mn, mx = ...`) silently sets min/max to nil. The bug hid in CUCO Random Walk's classifier from inception until 2026-05-07. Always destructure as `local _, mn, mx = ...`. Same trap exists in any code that calls TrackFX_GetParam.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.032Z",
-      "updated_at": "2026-05-07T16:25:47.032Z",
+      "created_at": "2026-05-07T16:33:01.405Z",
+      "updated_at": "2026-05-07T16:33:01.405Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -178,11 +178,11 @@
       "type": "knowledge",
       "status": "open",
       "title": "TrackFX_GetNumParamSteps does not exist",
-      "description": "",
+      "description": "There is no TrackFX_GetNumParamSteps in REAPER's API. To detect stepped params, sample 24 points across the range via TrackFX_FormatParamValue and count distinct formatted strings (≤16 distinct → stepped with that count). Live REAPER metadata via TrackFX_GetParameterStepSizes is authoritative for is_toggle/step_count when available.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.040Z",
-      "updated_at": "2026-05-07T16:25:47.040Z",
+      "created_at": "2026-05-07T16:33:01.415Z",
+      "updated_at": "2026-05-07T16:33:01.415Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -193,11 +193,11 @@
       "type": "knowledge",
       "status": "open",
       "title": "ReaImGui diverges from upstream Dear ImGui",
-      "description": "",
+      "description": "cfillion's ReaImGui binding does not match upstream Dear ImGui 1:1. Flags like AllowItemOverlap may be absent; Begin/End contracts have specific patterns; Viewport_GetWorkSize may not exist on older builds (wrap in pcall). Always query context7 /cfillion/reaimgui before writing or fixing any reaper.ImGui_* call.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.048Z",
-      "updated_at": "2026-05-07T16:25:47.048Z",
+      "created_at": "2026-05-07T16:33:01.437Z",
+      "updated_at": "2026-05-07T16:33:01.437Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -208,11 +208,11 @@
       "type": "knowledge",
       "status": "open",
       "title": "Plugin library file is 57MB — never full-read",
-      "description": "",
+      "description": "~/Library/Application Support/REAPER/Scripts/CUCO Random Walk Plugin Library.lua is 57MB / 566K lines. grep/awk/sed with line ranges is fine; full Read tool calls are NOT. Use line-anchored greps like `^M\\[` for plugin entries. Watch for non-UTF8 byte-sequence errors in awk from plugin names.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.056Z",
-      "updated_at": "2026-05-07T16:25:47.056Z",
+      "created_at": "2026-05-07T16:33:01.446Z",
+      "updated_at": "2026-05-07T16:33:01.446Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -223,11 +223,11 @@
       "type": "specification",
       "status": "open",
       "title": "shared-theme-contract",
-      "description": "",
+      "description": "API contract for projects/_shared/cuco_imgui_theme.lua. Spec doc to be written.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.064Z",
-      "updated_at": "2026-05-07T16:25:47.064Z",
+      "created_at": "2026-05-07T16:33:01.455Z",
+      "updated_at": "2026-05-07T16:33:01.455Z",
       "properties": {
         "worktree": "CUCO"
       }
@@ -237,11 +237,11 @@
       "type": "specification",
       "status": "open",
       "title": "reaimgui-usage",
-      "description": "",
+      "description": "ReaImGui usage patterns + footguns: Begin/End contract, AllowItemOverlap absence, Viewport_GetWorkSize fallback, frontier-pattern matching. Spec doc to be written.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.072Z",
-      "updated_at": "2026-05-07T16:25:47.072Z",
+      "created_at": "2026-05-07T16:33:01.463Z",
+      "updated_at": "2026-05-07T16:33:01.463Z",
       "properties": {
         "worktree": "CUCO"
       }
@@ -251,11 +251,11 @@
       "type": "specification",
       "status": "open",
       "title": "reaper-api-conventions",
-      "description": "",
+      "description": "REAPER API conventions: destructure rules, format-sampling for stepped params, 57MB plugin library handling. Spec doc to be written.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.081Z",
-      "updated_at": "2026-05-07T16:25:47.081Z",
+      "created_at": "2026-05-07T16:33:01.471Z",
+      "updated_at": "2026-05-07T16:33:01.471Z",
       "properties": {
         "worktree": "CUCO"
       }
@@ -265,11 +265,11 @@
       "type": "concept",
       "status": "open",
       "title": "Random Walk weighted-distribution shape picker",
-      "description": "",
+      "description": "Replaces single-shape selector + Random sentinel with a 6-cell weighted distribution (per-shape 0..1 weight + bezier tension on same row). Currently shipped in working tree as the chosen design; promote to subfeature when distribution-polish phase ships.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.089Z",
-      "updated_at": "2026-05-07T16:25:47.089Z",
+      "created_at": "2026-05-07T16:33:01.480Z",
+      "updated_at": "2026-05-07T16:33:01.480Z",
       "properties": {
         "worktree": "CUCO"
       }
@@ -279,11 +279,11 @@
       "type": "task",
       "status": "open",
       "title": "Commit-staging pass for accumulated working-tree changes",
-      "description": "",
+      "description": "Working tree carries Random Walk classifier overhaul, Audiosuite+ v0.6.0 Phase 1, theme retrofits across Keyframe/Metadata Match, EXPERIMENTAL-file rename, and _shared/ untracked. Split into ~5 logical commits per the original handover's recommended split.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.096Z",
-      "updated_at": "2026-05-07T16:25:47.096Z",
+      "created_at": "2026-05-07T16:33:01.496Z",
+      "updated_at": "2026-05-07T16:33:01.496Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -295,11 +295,11 @@
       "type": "task",
       "status": "open",
       "title": "Random Walk plugin metadata coverage",
-      "description": "",
+      "description": "Only ~30K of 562K params have authoritative is_toggle/step_count from live REAPER FX. Iteratively load plugin batches on a track and run 'Re-classify selected tracks (full)' to populate metadata for the remaining ~420 plugins. Not blocking — name-based classification still works for unloaded plugins.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.104Z",
-      "updated_at": "2026-05-07T16:25:47.104Z",
+      "created_at": "2026-05-07T16:33:01.504Z",
+      "updated_at": "2026-05-07T16:33:01.504Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -310,11 +310,11 @@
       "type": "task",
       "status": "open",
       "title": "Theme retrofit runtime verification",
-      "description": "",
+      "description": "Verify theme retrofits in REAPER for: OP 2, Metadata Match Criteria, predictive v01. None confirmed working in actual REAPER yet — only edited and theory-checked.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.112Z",
-      "updated_at": "2026-05-07T16:25:47.112Z",
+      "created_at": "2026-05-07T16:33:01.512Z",
+      "updated_at": "2026-05-07T16:33:01.512Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -325,11 +325,11 @@
       "type": "task",
       "status": "open",
       "title": "Bridge JSON decoder patches",
-      "description": "",
+      "description": "Patches in ~/Code/total-reaper-mcp and mcp_bridge_file_v2.lua carried over from prior PM session. Untouched.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.121Z",
-      "updated_at": "2026-05-07T16:25:47.121Z",
+      "created_at": "2026-05-07T16:33:01.521Z",
+      "updated_at": "2026-05-07T16:33:01.521Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -340,11 +340,11 @@
       "type": "task",
       "status": "open",
       "title": "Random Walk distribution polish",
-      "description": "",
+      "description": "Discoverable right-click menu (small ⋮ button), first-run hint banner, Help/About panel, README. Discussed at end of 2026-05-07 session; no work shipped.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.129Z",
-      "updated_at": "2026-05-07T16:25:47.129Z",
+      "created_at": "2026-05-07T16:33:01.529Z",
+      "updated_at": "2026-05-07T16:33:01.529Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -355,11 +355,11 @@
       "type": "task",
       "status": "open",
       "title": "Audiosuite+ Phase 2 execution",
-      "description": "",
+      "description": "Architecture decided: chain on takes (model A), lazy materialization on preset-load/preview, preview = play. See .planning/phases/audiosuite-plus-phase-2/PLAN.md.",
       "tags": [],
       "session": "s327",
-      "created_at": "2026-05-07T16:25:47.137Z",
-      "updated_at": "2026-05-07T16:25:47.137Z",
+      "created_at": "2026-05-07T16:33:01.537Z",
+      "updated_at": "2026-05-07T16:33:01.537Z",
       "properties": {
         "worktree": "CUCO"
       },
@@ -368,91 +368,91 @@
   ],
   "edges": [
     {
-      "id": "ie_movp6u8apld6",
+      "id": "ie_movpg5f0414y",
       "source": "T-001",
       "target": "M-003",
       "type": "blocks",
       "properties": {}
     },
     {
-      "id": "ie_movp6u8kcfd2",
+      "id": "ie_movpg5f9nyzq",
       "source": "T-006",
       "target": "M-002",
       "type": "blocks",
       "properties": {}
     },
     {
-      "id": "ie_movp6u8s6gbq",
+      "id": "ie_movpg5fisdex",
       "source": "T-005",
       "target": "M-001",
       "type": "blocks",
       "properties": {}
     },
     {
-      "id": "ie_movp6u90vw4e",
+      "id": "ie_movpg5fqkfta",
       "source": "T-002",
       "target": "M-001",
       "type": "blocks",
       "properties": {}
     },
     {
-      "id": "ie_movp6u98a81o",
+      "id": "ie_movpg5fz1zxz",
       "source": "T-006",
       "target": "F-002",
       "type": "part_of",
       "properties": {}
     },
     {
-      "id": "ie_movp6u9howt9",
+      "id": "ie_movpg5g7xprd",
       "source": "T-005",
       "target": "F-001",
       "type": "part_of",
       "properties": {}
     },
     {
-      "id": "ie_movp6u9ocobo",
+      "id": "ie_movpg5ggrp7x",
       "source": "T-002",
       "target": "F-001",
       "type": "part_of",
       "properties": {}
     },
     {
-      "id": "ie_movp6u9xuffu",
+      "id": "ie_movpg5gok5o4",
       "source": "T-003",
       "target": "F-003",
       "type": "part_of",
       "properties": {}
     },
     {
-      "id": "ie_movp6ua4yq0f",
+      "id": "ie_movpg5gw1szf",
       "source": "T-003",
       "target": "F-004",
       "type": "part_of",
       "properties": {}
     },
     {
-      "id": "ie_movp6uacu8ax",
+      "id": "ie_movpg5h4sweo",
       "source": "CON-001",
       "target": "F-001",
       "type": "relates_to",
       "properties": {}
     },
     {
-      "id": "ie_movp6uakyju4",
+      "id": "ie_movpg5hc8csl",
       "source": "SPEC-001",
       "target": "F-008",
       "type": "relates_to",
       "properties": {}
     },
     {
-      "id": "ie_movp6uaukucc",
+      "id": "ie_movpg5hl3vhf",
       "source": "SPEC-002",
       "target": "F-001",
       "type": "relates_to",
       "properties": {}
     },
     {
-      "id": "ie_movp6ub17i4a",
+      "id": "ie_movpg5htzrav",
       "source": "SPEC-003",
       "target": "F-001",
       "type": "relates_to",

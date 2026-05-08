@@ -712,11 +712,15 @@
       ],
       "session": "s327",
       "created_at": "2026-05-08T11:39:07.312Z",
-      "updated_at": "2026-05-08T11:39:07.312Z",
+      "updated_at": "2026-05-08T11:56:45.836Z",
       "properties": {
-        "worktree": "CUCO-reaper"
+        "worktree": "CUCO-reaper",
+        "handover_pending": true,
+        "handover_doc": ".planning/handovers/2026-05-08-T-019-keyframer-reapack-prep.md",
+        "handover_session": "s328"
       },
-      "priority": 2
+      "priority": 2,
+      "doc_path": ".planning/handovers/2026-05-08-T-019-keyframer-reapack-prep.md"
     },
     {
       "id": "T-020",

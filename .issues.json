@@ -617,7 +617,7 @@
     {
       "id": "T-017",
       "type": "task",
-      "status": "open",
+      "status": "closed",
       "title": "Migrate to CUCO-reaper monorepo (Lua + JSFX, dev-folder + symlinks)",
       "description": "Migrate from REAPER's runtime folders into a single dev-folder git repo at `~/Work/Development/CUCO-reaper/`, then symlink REAPER's paths back so REAPER reads through the dev source.\n\nSource today:\n- `~/Library/Application Support/REAPER/Scripts/CUCO/` (already a git repo with this IG)\n- `~/Library/Application Support/REAPER/Effects/CUCO_plugins/` (no git, just files)\n\nTarget:\n```\n~/Work/Development/CUCO-reaper/\n├── .git/  CLAUDE.md  .planning/  .claude/  .issues.json  tools/\n├── Scripts/CUCO/   (existing project content; symlink → REAPER/Scripts/CUCO)\n├── Effects/        (JSFX moved here; symlink → REAPER/Effects/CUCO)\n│   ├── lib/  Mixing/  Modulation/\n└── Instruments/    (empty, future; symlink → REAPER/Effects/CUCO Instruments later)\n```\n\nSequence:\n1. Pre-flight commit any pre-existing uncommitted Lua-side mods so the move is a clean tree-shape change.\n2. `mv \"$REAPER_HOME/Scripts/CUCO\" \"$DEV/CUCO-reaper\"` — preserves `.git/`.\n3. Inside repo: create `Scripts/CUCO/`, `git mv` existing project content into it, leaving meta files (`CLAUDE.md`, `.planning/`, `.claude/`, `.issues.json`, `tools/`) at root.\n4. `mv \"$REAPER_HOME/Effects/CUCO_plugins\"/* Effects/`. Reorganize into `lib/`, `Mixing/` (CUCO ReCenter family), `Modulation/` (CUCO Sweep).\n5. Update JSFX imports in 2 files (CUCO Sweep, CUCO ReCenter v5): `import CUCO_plugins/lib/...` → `import CUCO/lib/...`.\n6. Move docs from `Effects/CUCO_plugins/docs/` → `.planning/research/`. Delete the placeholder at `Effects/CUCO_plugins/docs/handover.md` (was a redirect; its canonical content is the handover at `.planning/handovers/`).\n7. Symlinks: `ln -sfn \"$DEV/CUCO-reaper/Scripts/CUCO\" \"$REAPER_HOME/Scripts/CUCO\"`; same for `Effects/CUCO`.\n8. Sanity-load both JSFX plugins from new symlinked location to confirm imports resolve.\n9. One commit: `chore: restructure as CUCO-reaper monorepo (Lua + JSFX)`.\n\nLayout is ReaPack-ready (Scripts/, Effects/ at root match REAPER's runtime tree) but ReaPack metadata is out of scope for this task — separate follow-up.\n\nFull session context (what was built, audio-test plan, DSP gotchas, suite conventions) lives in the handover doc + the JSFX research docs that move in step 6.",
       "tags": [
@@ -629,12 +629,19 @@
       ],
       "session": "s327",
       "created_at": "2026-05-07T21:16:58.048Z",
-      "updated_at": "2026-05-07T21:18:42.856Z",
+      "updated_at": "2026-05-08T11:17:13.366Z",
       "properties": {
         "worktree": "CUCO",
-        "handover_pending": true,
+        "handover_pending": false,
         "handover_doc": ".planning/handovers/2026-05-07-T-017-migrate-to-cuco-reaper.md",
-        "handover_session": "s327"
+        "handover_session": "s327",
+        "notes": [
+          {
+            "at": "2026-05-08T11:17:13.366Z",
+            "session": "s327",
+            "text": "Migration landed at 8d279f6. New tree: Scripts/CUCO/ + Effects/ + tools/ at ~/Work/Development/CUCO-reaper, symlinked to REAPER's runtime paths. scripts/ → tools/ rename was an unforeseen step (case collision with Scripts/ on case-insensitive APFS); 10 files updated. JSFX: 5 unbucketed plugins (Additive, Spear, Multiband Correlation Meter, ABLevelMatching_Modified, JM_ana_Correlation) at Effects/ root pending future categorisation. Sanity-load of the two new JSFX (CUCO Sweep, CUCO ReCenter v5) from new symlinked location is the user's verification step (REAPER reload required)."
+          }
+        ]
       },
       "priority": 2,
       "ready": true,

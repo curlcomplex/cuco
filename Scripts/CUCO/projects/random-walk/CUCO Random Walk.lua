@@ -1,6 +1,8 @@
--- @description CUCO Random Walk (GUI) — Advanced parameter automation with smart grouping and multiple iterations
+-- @description CUCO Random Walk — Advanced parameter automation with smart grouping and multiple iterations
 -- @version 4.0.0
 -- @author curl+tony
+-- @license MIT
+-- @provides ../_shared/cuco_imgui_theme.lua > cuco_imgui_theme.lua
 -- @changelog
 --   4.0.0  UI overhaul: themed surfaces, bottom-fixed footer, inline blacklist editors (no more modal popups), flexible-height window, fixed Begin/End contract for current ReaImGui.
 --   3.0.0  Major update: Added FX list with smart parameter grouping, iterative processing, render-to-takes, settings persistence
@@ -18,7 +20,7 @@ local r = reaper
 if not r.ImGui_CreateContext then
   r.ShowMessageBox(
     "This script requires the ReaImGui extension.\n\nInstall via ReaPack:\nExtensions > ReaPack > Browse Packages…\nSearch 'ReaImGui' and install/update, then restart REAPER.",
-    "Chain Drunk Walk (GUI)", 0)
+    "CUCO Random Walk", 0)
   return
 end
 
@@ -1522,10 +1524,14 @@ load_seed_history()
 local ctx = r.ImGui_CreateContext(WINDOW_TITLE)
 
 -- Shared CUCO theme module: palette + apply/revert + button helpers + tooltip.
+-- Resolver tries same-dir first (ReaPack install: theme bundled via @provides rename),
+-- then falls back to ../_shared/ (dev mode: running from repo).
 local theme = (function()
   local s = debug.getinfo(1, "S").source:sub(2)
-  local cuco = s:match("(.*/CUCO/)")
-  return dofile(cuco .. "projects/_shared/cuco_imgui_theme.lua")
+  local dir = s:match("(.*[/\\])") or ""
+  local ok, mod = pcall(dofile, dir .. "cuco_imgui_theme.lua")
+  if ok then return mod end
+  return dofile(dir .. "../_shared/cuco_imgui_theme.lua")
 end)()
 local COL     = theme.COL
 local pushBtn = theme.pushBtn

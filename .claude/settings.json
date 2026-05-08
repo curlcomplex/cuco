@@ -5,11 +5,11 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"/Users/f.god/Library/Application Support/REAPER/Scripts/CUCO/.claude/hooks/session-start-context.cjs\""
+            "command": "node \"/Users/f.god/Work/Development/CUCO-reaper/.claude/hooks/session-start-context.cjs\""
           },
           {
             "type": "command",
-            "command": "node \"/Users/f.god/Library/Application Support/REAPER/Scripts/CUCO/.claude/hooks/fresh-handovers.cjs\""
+            "command": "node \"/Users/f.god/Work/Development/CUCO-reaper/.claude/hooks/fresh-handovers.cjs\""
           }
         ]
       }
@@ -19,7 +19,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"/Users/f.god/Library/Application Support/REAPER/Scripts/CUCO/.claude/hooks/handover-log-nudge.cjs\""
+            "command": "node \"/Users/f.god/Work/Development/CUCO-reaper/.claude/hooks/handover-log-nudge.cjs\""
           }
         ]
       }

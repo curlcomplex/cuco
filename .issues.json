@@ -904,6 +904,539 @@
         "worktree": "CUCO-reaper"
       },
       "priority": 2
+    },
+    {
+      "id": "M-005",
+      "type": "milestone",
+      "status": "open",
+      "title": "Tidal Notation v1.0 — CURLOP-flavored grammar (chord names, scale, groove, /, step:, len:, articulations, hybrid source)",
+      "description": "Promote CUCO Tidal Notation from a bin-window step-language (current v0.8.1) to a CURLOP-flavored accumulator grammar with chord-name expansion, scale quantization, swing/groove post-processing, per-event step:/len: attributes, articulations (flam/bounce/buzz/gate/glide/geiger), and a hybrid source surface (take name for short, P_NOTES for long).\n\nSource references during build:\n- VST grammar primitives: /Users/f.god/Work/Development/CUCO-OP-VST/src/core/utils/music-math.js (SCALES, CHORDS, quantizeToScale, noteToMidi)\n- VST swing/groove: /Users/f.god/Work/Development/CUCO-OP-VST/src/processors/groove.js (8 modes)\n- VST articulation attributes: /Users/f.god/Work/Development/CUCO-OP-VST/src/attributes/{flam,bounce,buzz,gate,glide,geiger,length,step,note,vel,channel}.js\n- VST scale processor: /Users/f.god/Work/Development/CUCO-OP-VST/src/processors/scale.js\n- CURLOP `/` accumulator + step: model: /Users/f.god/Work/Development/CURLOP/native/audio/ScriptParser.cpp:1660-2050\n\nDesign decisions (committed):\n- Phase 0-3 full build (user direction, 2026-05-08).\n- Hybrid source surface: take name for short scripts; if take name is `~note` or empty, read source from P_NOTES instead.\n- Backward compat: legacy whitespace-separated tokens (no `/`) parse as 1-event-per-step. Existing v0.8.1 scripts continue to work.",
+      "tags": [
+        "tidal-notation",
+        "v1"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.503Z",
+      "updated_at": "2026-05-08T18:32:17.503Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2,
+      "ready": true
+    },
+    {
+      "id": "SPEC-004",
+      "type": "specification",
+      "status": "open",
+      "title": "Tidal Notation v1.0 grammar specification",
+      "description": "Canonical contract for the v1.0 grammar. Defines: token set (extends current with `/` STEP_BOUNDARY, `:` ATTR_SEPARATOR, FRACTION `N/M`), step-accumulator model (events accumulate into a Step container until `/`; whitespace-only tokens behave as implicit-`/` for back-compat), per-step processors (`step:N`), per-event attributes (`len:N`, `vel:N`, `ch:N`, articulations), chord-name token (`c4.maj7`), scale directives (`@scale c.major`), groove post-processor (`!groove(swing,50,20)`).\n\nSpec doc TBD — write in `.planning/specs/tidal-notation-v1-grammar.md` when Phase 0 begins; link via doc property at that point.",
+      "tags": [
+        "tidal-notation",
+        "spec"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.512Z",
+      "updated_at": "2026-05-08T18:32:17.512Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "SF-001",
+      "type": "subfeature",
+      "status": "open",
+      "title": "Phase 0 — refactor executor to event-list intermediate (foundation for all subsequent phases)",
+      "description": "Currently make_executor (CUCO Tidal Notation 0.8.1.lua:289-548) writes MIDI directly via insert_notes inside start_voice/flush_voice. Pivot to: executor pushes to an events[] array; a final write_events_to_midi pass at the end inserts them all. Pure refactor — same audible output, but with an event-list intermediate that all post-processors (groove, scale, articulations) can transform.\n\nThis is the unblocking step for Phase 1-3.",
+      "tags": [
+        "tidal-notation",
+        "refactor",
+        "foundation"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.519Z",
+      "updated_at": "2026-05-08T18:32:17.519Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2,
+      "ready": true
+    },
+    {
+      "id": "SF-002",
+      "type": "subfeature",
+      "status": "open",
+      "title": "Phase 1 — chord names, scale context, groove post-processor (cheap wins on event-list architecture)",
+      "description": "Add the high-value features that don't require grammar changes, riding the event-list refactor from Phase 0:\n- Chord names (`c4.maj7`, `d.min`, `g.dom7`) via CHORDS table from VST music-math.js\n- Scale context: `@scale c.major` header directive + quantizeToScale post-processor\n- Groove (8 swing/shuffle/push/quint/sept/samba/elastic/fractal modes) as event-list post-processor\n- Per-event vel: and ch: attributes",
+      "tags": [
+        "tidal-notation",
+        "v1",
+        "phase-1"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.527Z",
+      "updated_at": "2026-05-08T18:32:17.527Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "SF-003",
+      "type": "subfeature",
+      "status": "open",
+      "title": "Phase 2 — `/` step delimiter + step:/len: attributes (grammar pivot)",
+      "description": "Real grammar work. Tokenizer learns `/` as STEP_BOUNDARY. Parser switches to accumulator model: Step container holds an events[] list; `/` boundary pushes the accumulated step. step:N at step level multiplies that step's duration (CURLOP getStepMultiplierFor model). len:N at event level sets gate length independent of step advancement.\n\nBackward compat: bare whitespace-separated tokens (no `/`) parse as 1-event-per-step; existing v0.8.1 scripts continue to work.",
+      "tags": [
+        "tidal-notation",
+        "v1",
+        "phase-2",
+        "grammar"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.535Z",
+      "updated_at": "2026-05-08T18:32:17.535Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "SF-004",
+      "type": "subfeature",
+      "status": "open",
+      "title": "Phase 3 — articulations (flam, bounce, buzz, gate, glide, geiger)",
+      "description": "Each articulation is an event-list post-processor that takes 1 event in and produces N events out. Drop-in once Phase 0 is done.\n- flam:1/32 — grace note before main\n- bounce:0.5 — decaying repeats filling the step\n- buzz — trill\n- gate:0.5 — shorten release (one-event mutator)\n- glide — portamento bend\n- geiger — random clusters\n\nVST sources at /Users/f.god/Work/Development/CUCO-OP-VST/src/attributes/{flam,bounce,buzz,gate,glide,geiger}.js. Most are <100 lines each.",
+      "tags": [
+        "tidal-notation",
+        "v1",
+        "phase-3",
+        "articulations"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.542Z",
+      "updated_at": "2026-05-08T18:32:17.542Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "SF-005",
+      "type": "subfeature",
+      "status": "open",
+      "title": "Phase 4 — hybrid source surface (take name OR P_NOTES)",
+      "description": "Take names cap around 70 displayed chars. Once articulations and multi-channel arrive, scripts won't fit. Hybrid: if take name is `~note` or empty, read source from P_NOTES instead of P_NAME. Watcher needs to detect P_NOTES change (not just P_NAME). Origin-tracking still works (CTN tag survives in P_NOTES alongside source — disambiguate by line prefix).",
+      "tags": [
+        "tidal-notation",
+        "v1",
+        "phase-4",
+        "source-surface"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.549Z",
+      "updated_at": "2026-05-08T18:32:17.549Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-026",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 0a — refactor make_executor to push to events[] instead of inserting MIDI",
+      "description": "make_executor (CUCO Tidal Notation 0.8.1.lua:289-548) currently calls insert_notes inside the write branch of flush_voice/flush_all. Replace direct MIDI inserts with `events[#events+1] = { pitch, sQN, eQN, vel, ch, attrs }`. Same data, deferred write.",
+      "tags": [
+        "tidal-notation",
+        "phase-0"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.557Z",
+      "updated_at": "2026-05-08T18:32:17.557Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2,
+      "ready": true
+    },
+    {
+      "id": "T-027",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 0b — add write_events_to_midi terminal pass",
+      "description": "After all tokens are processed and post-processors run, iterate the events[] array and call MIDI_InsertNote per event, then MIDI_Sort. Mirrors the current write loop but operates on a finished list.",
+      "tags": [
+        "tidal-notation",
+        "phase-0"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.566Z",
+      "updated_at": "2026-05-08T18:32:17.566Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "T-028",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 0c — verify plan/scan diff harness still passes on v0.8.1 corpus",
+      "description": "Capture 10-15 representative names from current v0.8.1 templates as a corpus. Run with //debug //full and confirm `[CHECK] mismatches=0` after the refactor. Build a tiny test runner that re-renders each name and grep for the mismatch count. This becomes the regression net for Phases 1-3.",
+      "tags": [
+        "tidal-notation",
+        "phase-0",
+        "testing"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.573Z",
+      "updated_at": "2026-05-08T18:32:17.573Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "T-029",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 1a — port CHORDS table + chord-name expansion (c4.maj7, d.min, g.dom7)",
+      "description": "Source: /Users/f.god/Work/Development/CUCO-OP-VST/src/core/utils/music-math.js:39-105. Translate CHORDS table to Lua. Extend the executor's note-handler to detect `.qualifier` after a note (regex `^([a-gA-G][b#]?-?%d+)%.([%w]+)$`), look up the qualifier in CHORDS, expand into a baked stack of pitches at that step.",
+      "tags": [
+        "tidal-notation",
+        "phase-1",
+        "chord-names"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.579Z",
+      "updated_at": "2026-05-08T18:32:17.579Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "T-030",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 1b — port SCALES table + quantizeToScale + @scale header directive",
+      "description": "Source: /Users/f.god/Work/Development/CUCO-OP-VST/src/core/utils/music-math.js:5-37 (SCALES) + 125-178 (quantizeToScale). Plus /Users/f.god/Work/Development/CUCO-OP-VST/src/processors/scale.js. Add `@scale c.major` parse to parse_step_header (CUCO Tidal Notation 0.8.1.lua:112-129). Run as post-processor on events[] before write.",
+      "tags": [
+        "tidal-notation",
+        "phase-1",
+        "scale"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.587Z",
+      "updated_at": "2026-05-08T18:32:17.587Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "T-031",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 1c — port groove.js (8 swing modes) as event-list post-processor",
+      "description": "Source: /Users/f.god/Work/Development/CUCO-OP-VST/src/processors/groove.js (101 lines). Port verbatim to Lua. Modes: swing, shuffle, push, quint, sept, samba, elastic, fractal. Each adjusts event time + velocity. Wire as `//groove(swing,50,20)` flag in name (consistent with existing //debug flag pattern), or as `!groove(...)` if processor syntax is added.",
+      "tags": [
+        "tidal-notation",
+        "phase-1",
+        "groove"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.595Z",
+      "updated_at": "2026-05-08T18:32:17.595Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "T-032",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 1d — per-event vel:N and ch:N attribute attachments",
+      "description": "Add `:` attribute parsing in the tokenizer for the simple case `<note>:vel:N` or `<note>:ch:N`. Apply by attaching to the event before write. Parses cheap; integrates with the event-list architecture from Phase 0.",
+      "tags": [
+        "tidal-notation",
+        "phase-1",
+        "attributes"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.603Z",
+      "updated_at": "2026-05-08T18:32:17.603Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-033",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 2a — tokenizer learns `/` as STEP_BOUNDARY",
+      "description": "Add `/` as a token in tokenize() (CUCO Tidal Notation 0.8.1.lua:226). Distinct from FRACTION (`N/M` numeric). Parser uses STEP_BOUNDARY to flush the accumulating step.",
+      "tags": [
+        "tidal-notation",
+        "phase-2",
+        "grammar"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.610Z",
+      "updated_at": "2026-05-08T18:32:17.610Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "T-034",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 2b — parser switches to accumulator model (Step container with events[])",
+      "description": "Mirror CURLOP ScriptParser.cpp:1660-1694 (parseSeqBody) accumulator. Tokens accumulate into a Step's events[]; `/` pushes the step and resets. Whitespace alone NO LONGER advances; only `/` (or end-of-input) does. Back-compat: when no `/` is present, treat each whitespace-separated token as if followed by an implicit `/` (current v0.8.1 semantics preserved for legacy names).",
+      "tags": [
+        "tidal-notation",
+        "phase-2",
+        "grammar"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.617Z",
+      "updated_at": "2026-05-08T18:32:17.617Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "T-035",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 2c — implement step:N step-level processor (multiplies step duration)",
+      "description": "Mirror CURLOP getStepMultiplierFor (ScriptParser.cpp:2002-2028). step:2 = 2× step duration; step:0.5 = half. Supports number or fraction (1/16). Apply as a multiplier when computing per-step QN window in the executor.",
+      "tags": [
+        "tidal-notation",
+        "phase-2",
+        "step-attr"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.625Z",
+      "updated_at": "2026-05-08T18:32:17.625Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "T-036",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 2d — implement len:N per-event attribute (gate length independent of step)",
+      "description": "Source: /Users/f.god/Work/Development/CUCO-OP-VST/src/attributes/length.js. Per-event attribute that sets the event's eQN to sQN + len*stepQN, decoupling note duration from the step's cursor advancement. Allows `c4 len:2 / d4` (c4 sustains 2 steps; cursor advances 1 step before d4).",
+      "tags": [
+        "tidal-notation",
+        "phase-2",
+        "len-attr"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.632Z",
+      "updated_at": "2026-05-08T18:32:17.632Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "T-037",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 3a — port flam (grace + main)",
+      "description": "Source: /Users/f.god/Work/Development/CUCO-OP-VST/src/attributes/flam.js (30 lines). `flam:1/32` adds a grace note offset before the main note. Event-list post-processor: 1 event in → 2 events out.",
+      "tags": [
+        "tidal-notation",
+        "phase-3",
+        "articulation"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.639Z",
+      "updated_at": "2026-05-08T18:32:17.639Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-038",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 3b — port bounce (decaying repeats filling step)",
+      "description": "Source: /Users/f.god/Work/Development/CUCO-OP-VST/src/attributes/bounce.js (88 lines). `bounce:0.5` simulates a bouncing-ball decay; gravity arg controls density. 1 event in → N events out filling the step duration.",
+      "tags": [
+        "tidal-notation",
+        "phase-3",
+        "articulation"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.647Z",
+      "updated_at": "2026-05-08T18:32:17.647Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-039",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 3c — port buzz (trill)",
+      "description": "Source: /Users/f.god/Work/Development/CUCO-OP-VST/src/attributes/buzz.js (71 lines). `buzz:N` rapidly alternates between the note and N semitones above. 1 event in → many events out at sub-step rate.",
+      "tags": [
+        "tidal-notation",
+        "phase-3",
+        "articulation"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.655Z",
+      "updated_at": "2026-05-08T18:32:17.655Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-040",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 3d — port gate, glide, geiger",
+      "description": "Sources: /Users/f.god/Work/Development/CUCO-OP-VST/src/attributes/{gate,glide,geiger}.js. gate:0.5 = release shortener (1-in-1-out mutator); glide = portamento bend lane; geiger = random sub-step clusters.",
+      "tags": [
+        "tidal-notation",
+        "phase-3",
+        "articulation"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.662Z",
+      "updated_at": "2026-05-08T18:32:17.662Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 4
+    },
+    {
+      "id": "T-041",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 4a — hybrid source: read from P_NOTES when take name is `~note` or empty",
+      "description": "When take name starts with `~note` (or is empty after `~`-prefix detection), pull the actual notation from item P_NOTES. Disambiguate from CTN tag by line prefix: CTN line stays as `CTN:xxxxxxxx`; source lines are everything else.",
+      "tags": [
+        "tidal-notation",
+        "phase-4",
+        "source-surface"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.669Z",
+      "updated_at": "2026-05-08T18:32:17.669Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-042",
+      "type": "task",
+      "status": "open",
+      "title": "Phase 4b — watcher detects P_NOTES change (not just P_NAME)",
+      "description": "scan_once (line 856) currently only watches P_NAME. Add P_NOTES hashing/comparison for items whose name signals hybrid mode. Handle the increased poll cost (notes can be long; hash for cheap diff).",
+      "tags": [
+        "tidal-notation",
+        "phase-4",
+        "watcher"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.676Z",
+      "updated_at": "2026-05-08T18:32:17.676Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "B-003",
+      "type": "bug",
+      "status": "open",
+      "title": "No ReaPack header on Tidal Notation script — not installable via ReaPack",
+      "description": "CUCO Tidal Notation 0.8.1.lua:1-20 uses a custom `[[ReaScript Name: ...]]` block. Missing standard ReaPack tags: @version, @author, @description, @about, @license, @changelog. ~10 lines to retrofit. Distribution-relevant for any future M-NEW that publishes Tidal Notation.",
+      "tags": [
+        "tidal-notation",
+        "reapack",
+        "distribution"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.684Z",
+      "updated_at": "2026-05-08T18:32:17.684Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "B-004",
+      "type": "bug",
+      "status": "open",
+      "title": "Tidal Notation committed-name dedup has no force-rerender escape hatch",
+      "description": "Line 830 of CUCO Tidal Notation 0.8.1.lua: `if committed and committed == name then return`. Once a name is committed, you can never re-trigger that exact name (e.g. after tempo change or manual MIDI edits). Only escape: rename to something else, then back. Add `//force` flag (parsed in parse_flags) that bypasses the committed-name check.",
+      "tags": [
+        "tidal-notation",
+        "ux"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.691Z",
+      "updated_at": "2026-05-08T18:32:17.691Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "B-005",
+      "type": "bug",
+      "status": "open",
+      "title": "Tidal Notation has no visual error feedback — silent failure if console is closed",
+      "description": "Parse/runtime errors go through pcall to logln (CUCO Tidal Notation 0.8.1.lua:832). If the REAPER console is closed, the user sees a take with stale MIDI and no indication that the latest name failed. For a live-coding tool this gap is significant. Suggest: prefix `❌ ` to take name, or set item color red on parse failure.",
+      "tags": [
+        "tidal-notation",
+        "ux",
+        "error-feedback"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.698Z",
+      "updated_at": "2026-05-08T18:32:17.698Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "B-006",
+      "type": "bug",
+      "status": "open",
+      "title": "Tidal Notation stack `[]` cannot contain groups `()` — asymmetric grammar",
+      "description": "Line 459 of CUCO Tidal Notation 0.8.1.lua explicitly bails on non-string entries inside a stack: `(group-inside-stack is parked — ignore non-strings here)`. Stack parser (lines 234-237) splits inner by whitespace into flat strings only. Means `[c4 (e4 g4 b4) _]` (per-voice column where voice 2 plays a 3-note subdivision) is invalid. Should be a recursive parse, symmetric with how groups already accept nested tokens via `tokenize(inner)` (line 246).",
+      "tags": [
+        "tidal-notation",
+        "grammar",
+        "bug"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T18:32:17.707Z",
+      "updated_at": "2026-05-08T18:32:17.707Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 4
     }
   ],
   "edges": [
@@ -1220,6 +1753,293 @@
       "source": "CON-002",
       "target": "B-002",
       "type": "relates_to",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dtfr1ac",
+      "source": "SPEC-004",
+      "target": "M-005",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dtm261u",
+      "source": "SPEC-004",
+      "target": "F-014",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dttis73",
+      "source": "SF-001",
+      "target": "M-005",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95du1kr6r",
+      "source": "SF-002",
+      "target": "M-005",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95du9rnep",
+      "source": "SF-003",
+      "target": "M-005",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95duh08fz",
+      "source": "SF-004",
+      "target": "M-005",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95duo469r",
+      "source": "SF-005",
+      "target": "M-005",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95duvvjkc",
+      "source": "SF-001",
+      "target": "F-014",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dv3ohrd",
+      "source": "SF-002",
+      "target": "F-014",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dvb1bi0",
+      "source": "SF-003",
+      "target": "F-014",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dvi2f7j",
+      "source": "SF-004",
+      "target": "F-014",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dvqeyjb",
+      "source": "SF-005",
+      "target": "F-014",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dvyzc4x",
+      "source": "SF-001",
+      "target": "SF-002",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dw60nel",
+      "source": "SF-001",
+      "target": "SF-003",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dwdnjlo",
+      "source": "SF-001",
+      "target": "SF-004",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dwlydx7",
+      "source": "SF-003",
+      "target": "SF-004",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dwtnoph",
+      "source": "T-026",
+      "target": "SF-001",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dx1gtvh",
+      "source": "T-027",
+      "target": "SF-001",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dx8r25b",
+      "source": "T-028",
+      "target": "SF-001",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dxg3mu9",
+      "source": "T-026",
+      "target": "T-027",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dxnujs1",
+      "source": "T-027",
+      "target": "T-028",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dxuyqzs",
+      "source": "T-029",
+      "target": "SF-002",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dy0to07",
+      "source": "T-030",
+      "target": "SF-002",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dy7itdf",
+      "source": "T-031",
+      "target": "SF-002",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dyfqvzw",
+      "source": "T-032",
+      "target": "SF-002",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dymq42c",
+      "source": "T-033",
+      "target": "SF-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dys7rcu",
+      "source": "T-034",
+      "target": "SF-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dyz0xvl",
+      "source": "T-035",
+      "target": "SF-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dz8wwwz",
+      "source": "T-036",
+      "target": "SF-003",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dzfshpr",
+      "source": "T-033",
+      "target": "T-034",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dzl6sqc",
+      "source": "T-037",
+      "target": "SF-004",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95dztf7t9",
+      "source": "T-038",
+      "target": "SF-004",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95e0136l8",
+      "source": "T-039",
+      "target": "SF-004",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95e08azh0",
+      "source": "T-040",
+      "target": "SF-004",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95e0ez8bw",
+      "source": "T-041",
+      "target": "SF-005",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95e0lnswp",
+      "source": "T-042",
+      "target": "SF-005",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95e0tva9s",
+      "source": "T-041",
+      "target": "T-042",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95e1045j4",
+      "source": "B-003",
+      "target": "F-014",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95e16dssb",
+      "source": "B-004",
+      "target": "F-014",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95e1dz6k2",
+      "source": "B-005",
+      "target": "F-014",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox95e1lrotx",
+      "source": "B-006",
+      "target": "F-014",
+      "type": "part_of",
       "properties": {}
     }
   ]

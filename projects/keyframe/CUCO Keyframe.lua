@@ -1,5 +1,5 @@
 --[[
-@description CUCO Keyframe — snapshot and recall FX parameter states with envelope writing
+@description CUCO Keyframer — snapshot and recall FX parameter states with envelope writing
 @author      felixtatic
 @version     0.6.0
 @about
@@ -18,7 +18,7 @@
 @license      MIT
 ]]--
 
-local SCRIPT_VERSION = "0.6.0"
+local SCRIPT_VERSION = "0.7.0"
 local EXT_SECTION    = "CUCO_Keyframe"
 local EXT_KEY        = "snapshots"
 
@@ -28,6 +28,8 @@ local EXT_KEY        = "snapshots"
 local snapshots   = {}
 local activeSnap  = 0
 local writeMode   = 1       -- 1: cursor, 2: time selection
+local writeShape  = 0       -- 0=Linear 1=Square 2=Slow 3=FastStart 4=FastEnd 5=Bezier
+local writeTension = 0.0    -- only used by Bezier (-1..1)
 local targetMode  = 1       -- 1: Track FX, 2: Take FX
 local replaceMode = true
 local recall_respects_checks = true
@@ -309,11 +311,12 @@ end
 local function DeleteRange(env, s, e) reaper.DeleteEnvelopePointRange(env, s, e) end
 local function DeletePoint(env, t)    reaper.DeleteEnvelopePointRange(env, t-1e-6, t+1e-6) end
 
--- Envelope scaling fix: values are stored normalized 0..1, convert to env mode when writing
-local function WritePoint(env, t, norm_v)
+-- Envelope scaling fix: values are stored normalized 0..1, convert to env mode when writing.
+-- shape: REAPER envelope point shape (0..5). tension: only meaningful for Bezier (5).
+local function WritePoint(env, t, norm_v, shape, tension)
   local mode = reaper.GetEnvelopeScalingMode(env) or 0
   local v = reaper.ScaleToEnvelopeMode(mode, norm_v or 0.0)
-  reaper.InsertEnvelopePointEx(env, -1, t, v, 0, 0.0, false, true)
+  reaper.InsertEnvelopePointEx(env, -1, t, v, shape or 0, tension or 0.0, false, true)
 end
 
 -------------------------------------
@@ -504,7 +507,7 @@ local function WriteAutomation()
                   wt = tm - pos
                 end
                 if writeMode==1 and replaceMode then DeletePoint(env, wt) end
-                WritePoint(env, wt, val) -- scale inside WritePoint
+                WritePoint(env, wt, val, writeShape, writeTension)
               end
               reaper.Envelope_SortPoints(env)
             end
@@ -543,6 +546,72 @@ end
 -------------------------------------
 local ctx = reaper.ImGui_CreateContext('CUCO Keyframe')
 
+-- Shared CUCO theme module: palette + apply/revert + button helpers + segmented + tooltip.
+local theme = (function()
+  local s = debug.getinfo(1, "S").source:sub(2)
+  local cuco = s:match("(.*/CUCO/)")
+  return dofile(cuco .. "projects/_shared/cuco_imgui_theme.lua")
+end)()
+local COL       = theme.COL
+local pushBtn   = theme.pushBtn
+local popBtn    = theme.popBtn
+local segmented = theme.segmented
+local tooltip   = theme.tooltip
+
+-- Sample a normalized 0..1 progression for each REAPER envelope shape across t∈[0,1].
+-- These are *visual* approximations for the picker icons, not the actual REAPER curves
+-- (which are renderer-internal). Close enough that each shape is recognizable.
+local SHAPE_NAMES = { [0]="Linear", [1]="Square", [2]="Slow start/end",
+                      [3]="Fast start", [4]="Fast end", [5]="Bezier" }
+local SHAPE_ORDER = { 0, 1, 2, 3, 4, 5 }
+
+local function shape_y(shape, t)
+  if     shape == 0 then return t                                     -- Linear
+  elseif shape == 1 then return (t < 1) and 0 or 1                    -- Square (step at end)
+  elseif shape == 2 then return t * t * (3 - 2 * t)                   -- Slow start/end (smoothstep)
+  elseif shape == 3 then return t * t                                 -- Fast start (ease-in)
+  elseif shape == 4 then return 1 - (1 - t) * (1 - t)                 -- Fast end (ease-out)
+  elseif shape == 5 then return 0.5 - 0.5 * math.cos(t * math.pi)     -- Bezier (gentle s)
+  end
+  return t
+end
+
+-- Draw a small shape thumbnail and return whether it was clicked.
+-- Renders into an InvisibleButton's bounds so it gets hover/click behavior for free.
+local function shapePickerCell(ctx, shape, selected, w, h)
+  reaper.ImGui_PushID(ctx, "sp" .. shape)
+  local x, y = reaper.ImGui_GetCursorScreenPos(ctx)
+  local clicked = reaper.ImGui_InvisibleButton(ctx, "##cell", w, h)
+  local hovered = reaper.ImGui_IsItemHovered(ctx)
+
+  local dl = reaper.ImGui_GetWindowDrawList(ctx)
+  -- Cell background
+  local bg     = selected and COL.toggle_on or (hovered and COL.toggle_hi or COL.toggle_off)
+  reaper.ImGui_DrawList_AddRectFilled(dl, x, y, x + w, y + h, bg, 4)
+  -- Inset for the curve
+  local pad_x, pad_y = 5, 4
+  local x0, y0 = x + pad_x, y + h - pad_y
+  local x1, y1 = x + w - pad_x, y + pad_y
+  -- Curve color (lighter when selected)
+  local curve = selected and 0xFFFFFFFF or 0xC8C8D0FF
+  -- Sample N segments and stroke
+  local N = 24
+  local px, py = x0, y0
+  for i = 1, N do
+    local t  = i / N
+    local sy = shape_y(shape, t)
+    local nx = x0 + (x1 - x0) * t
+    local ny = y0 + (y1 - y0) * sy
+    reaper.ImGui_DrawList_AddLine(dl, px, py, nx, ny, curve, 1.5)
+    px, py = nx, ny
+  end
+  -- Endpoint dots
+  reaper.ImGui_DrawList_AddCircleFilled(dl, x0, y0, 1.8, curve)
+  reaper.ImGui_DrawList_AddCircleFilled(dl, x1, y1, 1.8, curve)
+  reaper.ImGui_PopID(ctx)
+  return clicked
+end
+
 local function ButtonCol(ctx, mode, cur, colA, colB)
   if mode == cur then
     reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), colA)
@@ -552,255 +621,318 @@ local function ButtonCol(ctx, mode, cur, colA, colB)
 end
 
 local function loop()
-  reaper.ImGui_SetNextWindowSize(ctx, 520, 650, reaper.ImGui_Cond_FirstUseEver())
-  -- Modern ReaImGui contract: End() must ALWAYS be called after Begin(),
-  -- regardless of visibility. The second return is the close-button state;
+  -- Fixed width, flexible height. Constraints apply every frame so resize
+  -- handles can only stretch vertically.
+  local FIXED_W = 600
+  reaper.ImGui_SetNextWindowSizeConstraints(ctx, FIXED_W, 280, FIXED_W, 1e6)
+  reaper.ImGui_SetNextWindowSize(ctx, FIXED_W, 520, reaper.ImGui_Cond_FirstUseEver())
+
+  -- Theme applies to the window itself (incl. title bar), so push BEFORE Begin.
+  local theme_token = theme.apply(ctx)
+
+  -- ReaImGui contract (NOT same as Dear ImGui upstream): End() must be called
+  -- ONLY when Begin returned visible=true. `open` is the close-button state;
   -- when the user clicks X, `open` becomes false and we stop the defer loop.
   local visible, open = reaper.ImGui_Begin(ctx, 'CUCO Keyframe ' .. SCRIPT_VERSION, true)
 
   if visible then
-  -- Auto-cancel if user changed selection mid-stage
-  local h = selHash()
-  if h ~= prevSelHash then
-    prevSelHash = h
-    if recall_staged or in_edit_mode then
-      SetEditMode(false)
-      recall_staged = false
-    end
-  end
-
-  -- Edit mode toggle
-  local editLabel = in_edit_mode and "Edit Mode: On" or "Edit Mode: Off"
-  reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), in_edit_mode and 0xFFD050FF or 0x555555FF)
-  if reaper.ImGui_Button(ctx, editLabel, 120, 0) then
-    SetEditMode(not in_edit_mode)
-    recall_staged = false
-  end
-  reaper.ImGui_PopStyleColor(ctx)
-
-  -- Target mode toggle
-  reaper.ImGui_SameLine(ctx)
-  ButtonCol(ctx, targetMode, 1, 0x3232C8FF, 0x303030FF)
-  local label1 = (targetMode == 1) and "Track FX" or "Take FX"
-  if reaper.ImGui_Button(ctx, label1, 100, 0) then
-    targetMode = (targetMode == 1) and 2 or 1
-  end
-  reaper.ImGui_PopStyleColor(ctx)
-
-  -- Write mode toggle
-  reaper.ImGui_SameLine(ctx)
-  ButtonCol(ctx, writeMode, 1, 0x25A18EFF, 0x303030FF)
-  local label2 = (writeMode == 1) and "Write at Cursor" or "Write to Selection"
-  if reaper.ImGui_Button(ctx, label2, 140, 0) then
-    writeMode = (writeMode == 1) and 2 or 1
-  end
-  reaper.ImGui_PopStyleColor(ctx)
-
-  -- Replace checkbox
-  reaper.ImGui_SameLine(ctx)
-  local ch, val = reaper.ImGui_Checkbox(ctx, 'Replace existing', replaceMode)
-  if ch then replaceMode = val end
-
-  -- Recall respects checks
-  reaper.ImGui_SameLine(ctx)
-  local chR, nvR = reaper.ImGui_Checkbox(ctx, 'Recall: respect checked', recall_respects_checks)
-  if chR then recall_respects_checks = nvR end
-
-  reaper.ImGui_Separator(ctx)
-
-  -- Action buttons
-  if reaper.ImGui_Button(ctx, 'Capture Keyframe') then HoldSnapshot() end
-  reaper.ImGui_SameLine(ctx)
-  local recallBtnLabel = recall_staged and "Recall Cancel" or "Recall"
-  if reaper.ImGui_Button(ctx, recallBtnLabel) then RecallSnapshot(snapshots[activeSnap]) end
-  reaper.ImGui_SameLine(ctx)
-  if reaper.ImGui_Button(ctx, 'Overwrite') then OverwriteSnapshot() end
-  reaper.ImGui_SameLine(ctx)
-  if reaper.ImGui_Button(ctx, 'Delete') then DeleteSnapshot() end
-  reaper.ImGui_SameLine(ctx)
-  if reaper.ImGui_Button(ctx, 'Prune stale') then
-    local n = PruneSnapshot()
-    setStatus(n > 0 and string.format("Pruned %d stale entr%s", n, n == 1 and "y" or "ies")
-                     or "Nothing to prune")
-  end
-
-  local windowWidth = reaper.ImGui_GetWindowWidth(ctx)
-  reaper.ImGui_SetCursorPosX(ctx, windowWidth - 110)
-  reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0x00CC44FF)
-  if reaper.ImGui_Button(ctx, 'Write', 100, 0) then WriteAutomation() end
-  reaper.ImGui_PopStyleColor(ctx)
-
-  -- Transient status line (muted gray); fades out by simply not rendering after timeout.
-  if status_msg ~= "" and reaper.time_precise() < status_until then
-    reaper.ImGui_TextColored(ctx, 0xAAAAAAFF, status_msg)
-  end
-
-  reaper.ImGui_Separator(ctx)
-
-  -- Filtered list of snapshots by current target type
-  local filtered = {}
-  local n = 0
-  for i,s in ipairs(snapshots) do
-    if (targetMode == 1 and s.type == "track") or (targetMode == 2 and s.type == "take") then
-      n = n + 1
-      table.insert(filtered, {i=i, s=s, n=n})
-    end
-  end
-
-  -- Reserve right strip for time + action buttons. Tuned for default ImGui font.
-  local RIGHT_STRIP_W = 180
-  local content_w = reaper.ImGui_GetContentRegionAvail(ctx)
-  local name_w = math.max(120, content_w - RIGHT_STRIP_W)
-
-  -- AllowItemOverlap was deprecated upstream in favor of SetNextItemAllowOverlap()
-  -- (called per-item, before the widget). Fall back gracefully on older ReaImGui.
-  local set_overlap = reaper.ImGui_SetNextItemAllowOverlap
-  local sel_flags = reaper.ImGui_SelectableFlags_AllowDoubleClick()
-
-  for _, rec in ipairs(filtered) do
-    local i, s, num = rec.i, rec.s, rec.n
-    local sel = (i == activeSnap)
-
-    reaper.ImGui_PushID(ctx, i)
-
-    if editing_idx == i then
-      -- Inline rename. Grab keyboard on first frame, commit on Enter or
-      -- click-away (only if value actually changed); Esc reverts.
-      if editing_just_started then
-        reaper.ImGui_SetKeyboardFocusHere(ctx)
-        editing_just_started = false
+    -- Auto-cancel if user changed selection mid-stage
+    local h = selHash()
+    if h ~= prevSelHash then
+      prevSelHash = h
+      if recall_staged or in_edit_mode then
+        SetEditMode(false)
+        recall_staged = false
       end
-      reaper.ImGui_SetNextItemWidth(ctx, name_w)
-      local _, nm = reaper.ImGui_InputText(ctx, "##edit", s.name or "", 256,
-        reaper.ImGui_InputTextFlags_EnterReturnsTrue() | reaper.ImGui_InputTextFlags_AutoSelectAll())
-      if reaper.ImGui_IsItemDeactivated(ctx) then
-        if reaper.ImGui_IsItemDeactivatedAfterEdit(ctx) then
-          s.name = nm
-          saveSnapshots()
-        end
-        editing_idx = nil
+    end
+
+    -- ─────────────────────────────────────────────────────────────
+    -- Filter snapshots by current target type
+    -- ─────────────────────────────────────────────────────────────
+    local filtered = {}
+    local n = 0
+    for i, s in ipairs(snapshots) do
+      if (targetMode == 1 and s.type == "track") or (targetMode == 2 and s.type == "take") then
+        n = n + 1
+        table.insert(filtered, { i = i, s = s, n = n })
       end
+    end
+    local has_any = (#snapshots > 0)
+    local has_filtered = (#filtered > 0)
+    local has_active = (activeSnap > 0 and snapshots[activeSnap] ~= nil)
+
+    -- ─────────────────────────────────────────────────────────────
+    -- Snapshot list — fills available height above the footer
+    -- ─────────────────────────────────────────────────────────────
+    -- Reserve footer space: status (cond) + toggles + shape + actions + separator + paddings.
+    -- The footer is ALWAYS at the bottom — list_pane absorbs height changes, not the footer.
+    local frame_h   = reaper.ImGui_GetFrameHeightWithSpacing(ctx)
+    local has_status = status_msg ~= "" and reaper.time_precise() < status_until
+    local footer_h  = frame_h * (has_status and 4 or 3) + 28
+
+    -- No border on the list child — the rounded ChildBg surface + footer separator
+    -- already give enough visual structure. Doubling them up looks heavy.
+    if reaper.ImGui_BeginChild(ctx, "list_pane", 0, -footer_h, 0) then
+
+    if not has_filtered then
+      reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Text(), COL.faint)
+      reaper.ImGui_Dummy(ctx, 0, 12)
+      local msg = has_any and "No snapshots for this target type." or "No keyframes yet — capture one below."
+      local tw = reaper.ImGui_CalcTextSize(ctx, msg)
+      local cw = reaper.ImGui_GetContentRegionAvail(ctx)
+      reaper.ImGui_SetCursorPosX(ctx, math.max(0, (cw - tw) * 0.5))
+      reaper.ImGui_Text(ctx, msg)
+      reaper.ImGui_PopStyleColor(ctx)
     else
-      local label = string.format("  %2d   %s", num, (s.name ~= "" and s.name) or "(unnamed)")
-      if set_overlap then set_overlap(ctx) end
-      if reaper.ImGui_Selectable(ctx, label, sel, sel_flags, name_w, 0) then
-        if activeSnap ~= i then recall_staged = false end
-        activeSnap = i
-        if reaper.ImGui_IsMouseDoubleClicked(ctx, 0) then
-          editing_idx = i
-          editing_just_started = true
+      local sel_flags = reaper.ImGui_SelectableFlags_AllowDoubleClick()
+      local set_overlap = reaper.ImGui_SetNextItemAllowOverlap
+
+      reaper.ImGui_PushStyleVar(ctx, reaper.ImGui_StyleVar_ItemSpacing(), 4, 6)
+
+      for _, rec in ipairs(filtered) do
+        local i, s, num = rec.i, rec.s, rec.n
+        local is_active = (i == activeSnap)
+
+        reaper.ImGui_PushID(ctx, i)
+
+        -- Active row: subtle full-row tint + bright accent stripe on the left edge.
+        if is_active then
+          local cx, cy = reaper.ImGui_GetCursorScreenPos(ctx)
+          local cw     = reaper.ImGui_GetContentRegionAvail(ctx)
+          local rh     = reaper.ImGui_GetFrameHeight(ctx) + 6
+          local dl     = reaper.ImGui_GetWindowDrawList(ctx)
+          reaper.ImGui_DrawList_AddRectFilled(dl, cx - 2, cy - 2, cx + cw, cy + rh, COL.active_row, 5)
+          -- 3px vertical stripe in the toggle accent color
+          reaper.ImGui_DrawList_AddRectFilled(dl, cx - 8, cy - 2, cx - 5, cy + rh, COL.toggle_on, 1)
         end
-      end
-    end
 
-    -- Time, muted, fixed-ish slot
-    reaper.ImGui_SameLine(ctx)
-    reaper.ImGui_TextColored(ctx, 0x888888FF, string.format("@%.3f", s.time or 0))
-
-    -- Per-row action buttons. SmallButton is compact; tooltips clarify intent.
-    reaper.ImGui_SameLine(ctx)
-    if reaper.ImGui_SmallButton(ctx, "R") then
-      if activeSnap ~= i then recall_staged = false end
-      activeSnap = i
-      RecallSnapshot(s)
-    end
-    if reaper.ImGui_IsItemHovered(ctx) then
-      reaper.ImGui_SetTooltip(ctx, "Recall (preview snapshot; click again to cancel)")
-    end
-
-    reaper.ImGui_SameLine(ctx)
-    if reaper.ImGui_SmallButton(ctx, "O") then
-      activeSnap = i
-      OverwriteSnapshot()
-      setStatus(string.format("Overwrote '%s'", s.name or "?"))
-    end
-    if reaper.ImGui_IsItemHovered(ctx) then
-      reaper.ImGui_SetTooltip(ctx, "Overwrite snapshot from current FX state")
-    end
-
-    reaper.ImGui_SameLine(ctx)
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_Button(), 0x803030FF)
-    reaper.ImGui_PushStyleColor(ctx, reaper.ImGui_Col_ButtonHovered(), 0xB04040FF)
-    if reaper.ImGui_SmallButton(ctx, "x") then
-      activeSnap = i
-      DeleteSnapshot()
-      reaper.ImGui_PopStyleColor(ctx, 2)
-      reaper.ImGui_PopID(ctx)
-      -- snapshots indices shifted; remaining `rec` entries reference stale i.
-      -- Break and let next frame rebuild `filtered` with fresh indices.
-      break
-    end
-    reaper.ImGui_PopStyleColor(ctx, 2)
-    if reaper.ImGui_IsItemHovered(ctx) then
-      reaper.ImGui_SetTooltip(ctx, "Delete snapshot")
-    end
-
-    reaper.ImGui_PopID(ctx)
-  end
-
-  reaper.ImGui_Separator(ctx)
-
-  -- Tree of params with checkboxes (start)
-  if activeSnap>0 and snapshots[activeSnap] then
-    local s = snapshots[activeSnap]
-    for id,data in pairs(s.data) do
-      if (targetMode == 1 and data.type == "track") or (targetMode == 2 and data.type == "take") then
-        local label = (data.type == "track") and GetTrackName(data.source) or GetTakeLabel(data.source, data.item)
-        -- ##id suffix gives ImGui a stable unique ID independent of label text,
-        -- so duplicate or empty labels can't cause "conflicting ID" errors.
-        if reaper.ImGui_TreeNode(ctx, label .. "##" .. id) then
-          local fxCount = (data.type == 'track') and reaper.TrackFX_GetCount(data.source)
-                                                  or reaper.TakeFX_GetCount(data.source)
-          for fxIdx,params in pairs(data.fx) do
-            local fxExists = fxIdx < fxCount
-            local fxName
-            if fxExists then
-              fxName = (data.type=='track')
-                and select(2, reaper.TrackFX_GetFXName(data.source, fxIdx, ""))
-                or  select(2, reaper.TakeFX_GetFXName(data.source, fxIdx, ""))
-              fxName = StripGUIDfromFXName(fxName)
-              if fxName == "" then fxName = "FX " .. fxIdx end
-            else
-              fxName = string.format("FX %d (removed)", fxIdx)
+        if editing_idx == i then
+          if editing_just_started then
+            reaper.ImGui_SetKeyboardFocusHere(ctx)
+            editing_just_started = false
+          end
+          reaper.ImGui_SetNextItemWidth(ctx, -120)
+          local _, nm = reaper.ImGui_InputText(ctx, "##edit", s.name or "",
+            reaper.ImGui_InputTextFlags_EnterReturnsTrue() | reaper.ImGui_InputTextFlags_AutoSelectAll())
+          if reaper.ImGui_IsItemDeactivated(ctx) then
+            if reaper.ImGui_IsItemDeactivatedAfterEdit(ctx) then
+              s.name = nm
+              saveSnapshots()
             end
-            if reaper.ImGui_TreeNode(ctx, fxName .. "##fx" .. fxIdx) then
-              local maxP = fxExists and ((data.type=='track')
-                and reaper.TrackFX_GetNumParams(data.source, fxIdx)
-                or  reaper.TakeFX_GetNumParams(data.source, fxIdx)) or 0
-              for pIdx,val in pairs(params) do
-                local pExists = pIdx < maxP
-                local pName
-                if pExists then
-                  pName = (data.type=='track')
-                    and select(2, reaper.TrackFX_GetParamName(data.source,fxIdx,pIdx,""))
-                    or  select(2, reaper.TakeFX_GetParamName(data.source,fxIdx,pIdx,""))
-                  if pName == "" then pName = "Param " .. pIdx end
-                else
-                  pName = string.format("Param %d (removed)", pIdx)
-                end
-                local key  = id..'.'..fxIdx..'.'..pIdx
-                local flag = s.checked[id].fx[fxIdx][pIdx]
-                -- "##key" makes the checkbox label invisible but ID-unique,
-                -- so we get a clean checkbox + readable text via SameLine.
-                local ch3, nf = reaper.ImGui_Checkbox(ctx, "##" .. key, flag)
-                if ch3 then s.checked[id].fx[fxIdx][pIdx] = nf; saveSnapshots() end
-                reaper.ImGui_SameLine(ctx)
-                reaper.ImGui_Text(ctx, string.format('%s: %.3f', pName, val))
-              end
-              reaper.ImGui_TreePop(ctx)
+            editing_idx = nil
+          end
+        else
+          -- Number badge (muted, monospace-feel via fixed format)
+          reaper.ImGui_TextColored(ctx, COL.muted, string.format("%2d", num))
+          reaper.ImGui_SameLine(ctx, 0, 12)
+
+          -- Selectable spans the rest of the row width minus the action strip.
+          if set_overlap then set_overlap(ctx) end
+          local name = (s.name ~= "" and s.name) or "(unnamed)"
+          local row_w = reaper.ImGui_GetContentRegionAvail(ctx) - 165 -- room for action buttons
+          if reaper.ImGui_Selectable(ctx, name, is_active, sel_flags, row_w, 0) then
+            if activeSnap ~= i then recall_staged = false end
+            activeSnap = i
+            if reaper.ImGui_IsMouseDoubleClicked(ctx, 0) then
+              editing_idx = i
+              editing_just_started = true
             end
           end
-          reaper.ImGui_TreePop(ctx)
+        end
+
+        -- Right-aligned action strip (Recall · Overwrite · Delete)
+        reaper.ImGui_SameLine(ctx)
+        local cw = reaper.ImGui_GetContentRegionAvail(ctx)
+        reaper.ImGui_SetCursorPosX(ctx, reaper.ImGui_GetCursorPosX(ctx) + cw - 155)
+
+        if reaper.ImGui_SmallButton(ctx, "Recall") then
+          if activeSnap ~= i then recall_staged = false end
+          activeSnap = i
+          RecallSnapshot(s)
+        end
+        tooltip(ctx, "Preview the snapshot's values; click again to cancel")
+
+        reaper.ImGui_SameLine(ctx)
+        if reaper.ImGui_SmallButton(ctx, "Overwrite") then
+          activeSnap = i
+          OverwriteSnapshot()
+          setStatus(string.format("Overwrote '%s'", name or "?"))
+        end
+        tooltip(ctx, "Replace this snapshot with the current FX state")
+
+        reaper.ImGui_SameLine(ctx)
+        pushBtn(ctx, COL.danger, COL.danger_hi)
+        if reaper.ImGui_SmallButton(ctx, "x") then
+          activeSnap = i
+          DeleteSnapshot()
+          popBtn(ctx)
+          reaper.ImGui_PopID(ctx)
+          break -- indices shifted; rebuild next frame
+        end
+        popBtn(ctx)
+        tooltip(ctx, "Delete snapshot")
+
+        reaper.ImGui_PopID(ctx)
+      end
+
+      reaper.ImGui_PopStyleVar(ctx)
+    end
+
+      -- Captured params lives inside the scroll pane so the footer stays put.
+      -- Re-resolve `s` here: an in-frame Delete may have invalidated the cached has_active.
+      local active_snap = (activeSnap > 0) and snapshots[activeSnap] or nil
+      if active_snap then
+        reaper.ImGui_Dummy(ctx, 0, 4)
+        if reaper.ImGui_CollapsingHeader(ctx, "Captured params") then
+          local s = active_snap
+          for id, data in pairs(s.data) do
+            if (targetMode == 1 and data.type == "track") or (targetMode == 2 and data.type == "take") then
+              local lbl = (data.type == "track") and GetTrackName(data.source) or GetTakeLabel(data.source, data.item)
+              if reaper.ImGui_TreeNode(ctx, lbl .. "##" .. id) then
+                local fxCount = (data.type == 'track') and reaper.TrackFX_GetCount(data.source)
+                                                       or  reaper.TakeFX_GetCount(data.source)
+                for fxIdx, params in pairs(data.fx) do
+                  local fxExists = fxIdx < fxCount
+                  local fxName
+                  if fxExists then
+                    fxName = (data.type == 'track')
+                      and select(2, reaper.TrackFX_GetFXName(data.source, fxIdx, ""))
+                      or  select(2, reaper.TakeFX_GetFXName(data.source, fxIdx, ""))
+                    fxName = StripGUIDfromFXName(fxName)
+                    if fxName == "" then fxName = "FX " .. fxIdx end
+                  else
+                    fxName = string.format("FX %d (removed)", fxIdx)
+                  end
+                  if reaper.ImGui_TreeNode(ctx, fxName .. "##fx" .. fxIdx) then
+                    local maxP = fxExists and ((data.type == 'track')
+                      and reaper.TrackFX_GetNumParams(data.source, fxIdx)
+                      or  reaper.TakeFX_GetNumParams(data.source, fxIdx)) or 0
+                    for pIdx, val in pairs(params) do
+                      local pExists = pIdx < maxP
+                      local pName
+                      if pExists then
+                        pName = (data.type == 'track')
+                          and select(2, reaper.TrackFX_GetParamName(data.source, fxIdx, pIdx, ""))
+                          or  select(2, reaper.TakeFX_GetParamName(data.source, fxIdx, pIdx, ""))
+                        if pName == "" then pName = "Param " .. pIdx end
+                      else
+                        pName = string.format("Param %d (removed)", pIdx)
+                      end
+                      local key  = id .. '.' .. fxIdx .. '.' .. pIdx
+                      local flag = s.checked[id].fx[fxIdx][pIdx]
+                      local ch3, nf = reaper.ImGui_Checkbox(ctx, "##" .. key, flag)
+                      if ch3 then s.checked[id].fx[fxIdx][pIdx] = nf; saveSnapshots() end
+                      reaper.ImGui_SameLine(ctx)
+                      reaper.ImGui_Text(ctx, string.format('%s: %.3f', pName, val))
+                    end
+                    reaper.ImGui_TreePop(ctx)
+                  end
+                end
+                reaper.ImGui_TreePop(ctx)
+              end
+            end
+          end
         end
       end
-    end
-  else
-    reaper.ImGui_Text(ctx, '(No snapshots yet)')
-  end
 
+      reaper.ImGui_EndChild(ctx)
+    end -- BeginChild list_pane
+
+    -- ─────────────────────────────────────────────────────────────
+    -- Footer — status + toggles + actions, fixed at the bottom
+    -- ─────────────────────────────────────────────────────────────
+    reaper.ImGui_Separator(ctx)
+
+    -- Status line with smooth alpha fade in the last 0.6s
+    if has_status then
+      local remaining = status_until - reaper.time_precise()
+      local alpha = math.min(1.0, remaining / 0.6)
+      reaper.ImGui_TextColored(ctx, theme.fade_color(COL.status, alpha), status_msg)
+    end
+
+    -- Row 1: stateful toggles
+    local edit_label = in_edit_mode and "Edit Mode · ON" or "Edit Mode · off"
+    pushBtn(ctx,
+      in_edit_mode and COL.warn      or COL.toggle_off,
+      in_edit_mode and COL.warn_hi   or COL.toggle_hi)
+    if reaper.ImGui_Button(ctx, edit_label, 130, 0) then
+      SetEditMode(not in_edit_mode)
+      recall_staged = false
+    end
+    popBtn(ctx)
+    tooltip(ctx, "Bypass automation envelopes for live preview & recall")
+
+    reaper.ImGui_SameLine(ctx, 0, 12)
+    targetMode = segmented(ctx, "tgt", "Track FX", "Take FX", targetMode, 180)
+    tooltip(ctx, "Snapshot scope: track FX or take FX")
+
+    reaper.ImGui_SameLine(ctx, 0, 16)
+    local rc, rv = reaper.ImGui_Checkbox(ctx, "Replace existing", replaceMode)
+    if rc then replaceMode = rv end
+    tooltip(ctx, "When writing, replace overlapping envelope points")
+
+    reaper.ImGui_SameLine(ctx, 0, 12)
+    local rcc, rvc = reaper.ImGui_Checkbox(ctx, "Respect ✓", recall_respects_checks)
+    if rcc then recall_respects_checks = rvc end
+    tooltip(ctx, "Recall only checked params (in the captured params list)")
+
+    -- Row 2: shape picker — six custom-drawn thumbnails for the envelope point shape.
+    reaper.ImGui_AlignTextToFramePadding(ctx)
+    reaper.ImGui_TextColored(ctx, COL.muted, "Shape")
+    reaper.ImGui_SameLine(ctx, 0, 10)
+    local CELL_W, CELL_H = 36, 22
+    for _, shape in ipairs(SHAPE_ORDER) do
+      if shapePickerCell(ctx, shape, writeShape == shape, CELL_W, CELL_H) then
+        writeShape = shape
+      end
+      tooltip(ctx, SHAPE_NAMES[shape])
+      reaper.ImGui_SameLine(ctx, 0, 4)
+    end
+    -- Bezier tension slider — only visible when Bezier is selected.
+    if writeShape == 5 then
+      reaper.ImGui_SameLine(ctx, 0, 12)
+      reaper.ImGui_SetNextItemWidth(ctx, 160)
+      local tch, tv = reaper.ImGui_SliderDouble(ctx, "##tension", writeTension, -1.0, 1.0, "tension %.2f")
+      if tch then writeTension = tv end
+      tooltip(ctx, "Bezier tension: -1 sharp, 0 smooth, +1 sharp the other way")
+    else
+      reaper.ImGui_NewLine(ctx)
+    end
+
+    -- Row 3: actions
+    pushBtn(ctx, COL.primary, COL.primary_hi)
+    if reaper.ImGui_Button(ctx, "+ Capture", 110, 0) then HoldSnapshot() end
+    popBtn(ctx)
+    tooltip(ctx, "Capture the current FX state as a new keyframe")
+
+    reaper.ImGui_SameLine(ctx, 0, 8)
+    if reaper.ImGui_Button(ctx, "Prune stale", 100, 0) then
+      local n = PruneSnapshot()
+      setStatus(n > 0 and string.format("Pruned %d stale entr%s", n, n == 1 and "y" or "ies")
+                       or "Nothing to prune")
+    end
+    tooltip(ctx, "Remove references to deleted FX/params from all snapshots")
+
+    reaper.ImGui_SameLine(ctx, 0, 16)
+    writeMode = segmented(ctx, "wm", "Cursor", "Selection", writeMode, 160)
+    tooltip(ctx, "Write target: at edit cursor, or across the time selection")
+
+    -- Right-aligned big primary Write button
+    reaper.ImGui_SameLine(ctx)
+    local cw_remaining = reaper.ImGui_GetContentRegionAvail(ctx)
+    if cw_remaining > 110 then
+      reaper.ImGui_SetCursorPosX(ctx, reaper.ImGui_GetCursorPosX(ctx) + cw_remaining - 110)
+    end
+    pushBtn(ctx, COL.primary, COL.primary_hi)
+    if reaper.ImGui_Button(ctx, "Write ▶", 110, 0) then WriteAutomation() end
+    popBtn(ctx)
+    tooltip(ctx, "Write the active snapshot's values into automation envelopes")
+
+    reaper.ImGui_End(ctx)
   end -- if visible
 
-  reaper.ImGui_End(ctx)
+  theme.revert(ctx, theme_token)
+
   if open then reaper.defer(loop) end
 end
 

@@ -732,7 +732,7 @@
     {
       "id": "T-020",
       "type": "task",
-      "status": "open",
+      "status": "closed",
       "title": "Random Walk ReaPack prep: dofile refactor, @provides, @license",
       "description": "Prepare CUCO Random Walk GUI.lua for ReaPack distribution:\n\n1. **Refactor dofile resolution** (same pattern as T-019): script-relative anchor instead of `(.*/CUCO/)`.\n2. **Add `@provides ../_shared/cuco_imgui_theme.lua`** for theme bundling.\n3. **Add `@license MIT`** (or chosen license) — currently absent.\n4. Optional: `@dependencies ReaImGui` (a hint to users; the script already shows an install-prompt at startup if missing).\n5. Verify Random Walk still loads under the dev symlink path after the refactor.\n\nLikely closes T-002 (Random Walk plugin metadata coverage) and T-005 (Random Walk distribution polish) along the way — assess at landing.",
       "tags": [
@@ -741,9 +741,16 @@
       ],
       "session": "s327",
       "created_at": "2026-05-08T11:39:07.318Z",
-      "updated_at": "2026-05-08T11:39:07.318Z",
+      "updated_at": "2026-05-08T15:05:47.093Z",
       "properties": {
-        "worktree": "CUCO-reaper"
+        "worktree": "CUCO-reaper",
+        "notes": [
+          {
+            "at": "2026-05-08T15:05:47.093Z",
+            "session": "s327",
+            "text": "Closed at 163dba1. Rename GUI.lua → Random Walk.lua + @license + @provides (rename-on-install syntax) + dual-path dofile resolver + stale dialog title fix. Includes post-T-019 correction to Keyframer's @provides + resolver to use the same rename-on-install pattern (forced by ReaPack's no-cross-package-shared-file rule). Verified: reapack-index --check 0 failures, both GUIs reload in REAPER."
+          }
+        ]
       },
       "priority": 2
     },
@@ -761,6 +768,138 @@
       "session": "s327",
       "created_at": "2026-05-08T11:39:07.324Z",
       "updated_at": "2026-05-08T11:39:07.324Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2
+    },
+    {
+      "id": "B-001",
+      "type": "bug",
+      "status": "open",
+      "title": "execute_code stores engine wrapper instead of plan — entire send-to-REAPER pipe dead",
+      "description": "engine.process_notation returns `{ ok=true, plan=..., ctx=... }` (engine.lua:30) but execute_code in `Scripts/CUCO/projects/curlop/CUCO OP 2.lua:589-590` stores the wrapper into `state.execution.last_result` AND `state.execution.output_events`. The count `#result` at line 593 reports 0 for the wrapper, so 'Generated 0 events' fires even when the engine produced events. Downstream consumers iterate `output_events` expecting `event.s` / `event.pitch` / `event.e` (lines 658, 807, 836, 1453, and update_target_item at line 658) — those keys live on `result.plan[i]`, not on the wrapper. Net: nothing is ever written to MIDI even if the engine works perfectly. Fix is ~5 lines: assign `result.plan` and re-check the count + `last_error`.",
+      "tags": [
+        "cuco-op",
+        "engine-integration",
+        "blocker"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T16:12:06.813Z",
+      "updated_at": "2026-05-08T16:12:06.813Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 1,
+      "ready": true
+    },
+    {
+      "id": "B-002",
+      "type": "bug",
+      "status": "open",
+      "title": "Parser never emits NOTE node — note tokens like c4/d#4 become no-op IDENTs",
+      "description": "`Scripts/CUCO/projects/curlop/src/engine/parser.lua:55-57` parses every IDENT token (including `c4`, `d#4`, `melody`) as `AST.IDENT` with no note-name interpretation. The executor's NOTE branch at executor.lua:41 is dead code — no NOTE node is ever produced. The CHORD branch (executor.lua:49) iterates `node.notes` whose children are IDENT atoms with no `pitch` field, so all events default to pitch 60. Result: every template in the inline block (CUCO OP 2.lua:60-516) and every script in the library produces either 0 events or stacked C5s. Fix needs (a) note-name regex on IDENT text (e.g. `^([a-g])([#b]?)(%-?%d+)$`), (b) MIDI-note table mapping, (c) parser emitting `AST.NOTE` with `pitch` when the IDENT matches.",
+      "tags": [
+        "cuco-op",
+        "parser",
+        "engine"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T16:12:06.823Z",
+      "updated_at": "2026-05-08T16:12:06.823Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 2,
+      "ready": true
+    },
+    {
+      "id": "T-022",
+      "type": "task",
+      "status": "open",
+      "title": "De-duplicate CUCO OP 2 templates — inline block vs script library",
+      "description": "CUCO OP 2.lua:60-516 hardcodes ~400 lines of `templates = {...}` AND `init_script_library` (line 519) calls `template_migration.migrate_templates(script_library)` to seed the same content into the script library. Two sources of truth. Keep the script library; delete the inline block. Verify migration still works on a fresh install (no existing library file).",
+      "tags": [
+        "cuco-op",
+        "cleanup"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T16:12:06.832Z",
+      "updated_at": "2026-05-08T16:12:06.832Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "T-023",
+      "type": "task",
+      "status": "open",
+      "title": "Strip dead editor UI state from CUCO OP 2",
+      "description": "`state.editor.syntax_tokens` and `state.editor.error_markers` (CUCO OP 2.lua:63-64) are declared but never populated or rendered. `state.editor.cursor_line` / `cursor_col` (lines 60-61) declared, never updated — the editor uses `ImGui_InputTextMultiline` (line 1335) which manages its own cursor. `state.template_categories = {}` (line 120) declared, never used. `state.execution.last_result` is set but only `output_events` is read downstream. Remove these unused fields to reduce maintenance noise. Re-add them when actually wiring syntax highlighting / error markers / cursor reporting.",
+      "tags": [
+        "cuco-op",
+        "cleanup"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T16:12:06.842Z",
+      "updated_at": "2026-05-08T16:12:06.842Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 4
+    },
+    {
+      "id": "T-024",
+      "type": "task",
+      "status": "open",
+      "title": "Hide or remove placeholder Documentation panel in CUCO OP 2",
+      "description": "render_documentation_panel (CUCO OP 2.lua:1255-1281) renders a Search input that does nothing (line 1264 — `search_text` is local, never read), 10 hardcoded function names (lines 1268-1271), and a `-- TODO: Show function documentation` at line 1275. The panel advertises a help system that isn't there. Either: (a) delete the panel + its toggle in render_menu_bar; or (b) populate from the chatgpt function list spec at `src/processors/chatgpt function list.lua` to make the panel real. Don't ship dead UI.",
+      "tags": [
+        "cuco-op",
+        "ui",
+        "cleanup"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T16:12:06.851Z",
+      "updated_at": "2026-05-08T16:12:06.851Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 4
+    },
+    {
+      "id": "T-025",
+      "type": "task",
+      "status": "open",
+      "title": "Coalesce per-keystroke undo pushes in CUCO OP 2",
+      "description": "CUCO OP 2.lua:1339-1343 calls `undo_manager.push_state` on every editor change — every keystroke becomes its own undo step. `MAX_HISTORY_SIZE = 50` in undo_manager.lua means typing fills the stack with single-char diffs and silently drops older real states. Coalesce: debounce by N ms of inactivity, OR commit on word boundary (space/newline), OR commit on pause+blur. Either approach is fine; pick whichever feels best in a quick prototype.",
+      "tags": [
+        "cuco-op",
+        "ux",
+        "editor"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T16:12:06.859Z",
+      "updated_at": "2026-05-08T16:12:06.859Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      },
+      "priority": 3
+    },
+    {
+      "id": "CON-002",
+      "type": "concept",
+      "status": "open",
+      "title": "CUCO OP v2 direction — revive engine, capture-and-archive, or status-quo+repairs",
+      "description": "Audit on 2026-05-08 found the spec↔implementation gap is ~90%: tokenizer + parser are real, executor is a stub (no timesig/grid/processors/RNG/MPE), the processors/ tree contains spec stubs (lfo.lua = 0 bytes; most files <100 bytes), and the integration layer has a result-shape bug (B-001) blocking the send-to-REAPER pipe even if the engine worked. Three options surfaced:\n\n**A) Smallest unit of 'it does anything at all'** (~1-2 days) — fix B-001 (5 lines), implement note-name parsing for B-002 (~30 lines), wire `[ ]` to advance time per element, fix CHORD parse path for `( )`. Outcome: typing `[c4 d4 e4 f4]` writes 4 sequential notes. The IDE comes alive on a tiny subset of the language.\n\n**B) Capture-and-archive** (~2 hours) — move the language doc + processor function list into `.planning/specs/` proper, archive the codebase as `archive/cuco-op-v2/`, pick up later or rebuild on a different foundation.\n\n**C) Status-quo + scoped repairs** — only fix B-001, dedup templates (T-022), strip dead UI (T-023), hide placeholder docs (T-024). Don't expand the language. Treat as a notation playground.\n\nNo decision yet. Promotes to subfeature/task on commit, or to knowledge if route B is taken.",
+      "tags": [
+        "cuco-op",
+        "decision"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-08T16:12:06.868Z",
+      "updated_at": "2026-05-08T16:12:06.868Z",
       "properties": {
         "worktree": "CUCO-reaper"
       },
@@ -1003,6 +1142,83 @@
       "id": "ie_mowue1h1qkpe",
       "source": "T-020",
       "target": "T-005",
+      "type": "relates_to",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox453z2gyfw",
+      "source": "B-001",
+      "target": "F-013",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox453z9c8gy",
+      "source": "B-001",
+      "target": "F-013",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox453zqt4f8",
+      "source": "B-002",
+      "target": "F-013",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox453zzoh7x",
+      "source": "B-002",
+      "target": "F-013",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox4540727y8",
+      "source": "T-022",
+      "target": "F-013",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox4540fb46l",
+      "source": "T-023",
+      "target": "F-013",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox4540n8l7s",
+      "source": "T-024",
+      "target": "F-013",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox4540vdqeg",
+      "source": "T-025",
+      "target": "F-013",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox454131kic",
+      "source": "CON-002",
+      "target": "F-013",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox4541aul01",
+      "source": "CON-002",
+      "target": "B-001",
+      "type": "relates_to",
+      "properties": {}
+    },
+    {
+      "id": "ie_mox4541jcj1x",
+      "source": "CON-002",
+      "target": "B-002",
       "type": "relates_to",
       "properties": {}
     }

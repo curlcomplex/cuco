@@ -936,11 +936,15 @@
       ],
       "session": "s327",
       "created_at": "2026-05-08T18:32:17.512Z",
-      "updated_at": "2026-05-08T18:32:17.512Z",
+      "updated_at": "2026-05-08T21:25:25.589Z",
       "properties": {
-        "worktree": "CUCO-reaper"
+        "worktree": "CUCO-reaper",
+        "handover_pending": true,
+        "handover_doc": ".planning/handovers/2026-05-08-SPEC-004-tidal-notation-v1-syntax.md",
+        "handover_session": "s327"
       },
-      "priority": 2
+      "priority": 2,
+      "doc_path": ".planning/handovers/2026-05-08-SPEC-004-tidal-notation-v1-syntax.md"
     },
     {
       "id": "SF-001",

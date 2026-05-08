@@ -1,5 +1,7 @@
 # T-019 — Keyframer ReaPack prep (next: T-019 → T-020 → T-021 publish)
 
+> ✅ **CONSUMED s327** — Both T-019 and T-020 closed this session. T-019 landed at `bf9e167`; T-020 landed at `163dba1` and includes a post-T-019 correction (rename-on-install via `@provides ... > cuco_imgui_theme.lua` + dual-path resolver — see "Caveats" → ReaPack rejected the original cross-package shared `@provides` at check time, forcing the pivot). T-021 (publish) remains open and unblocked. The "unnamed index" warning from `reapack-index --check` was deferred to T-021. Stop here unless picking up T-021 publish.
+
 📋 Citation check skipped — `scripts/check-handover.sh` not installed in CUCO. Manual review for canonical citations applied.
 
 ## 🛑 PROTOCOLS FIRST (mandatory, leads opener)
@@ -53,8 +55,8 @@ T-017 monorepo migration done at `8d279f6`; T-018 ReaPack scaffolding done at `1
 
 After protocols above, **start T-019 (Keyframer prep)**. Concrete sub-steps in order [per T-019 desc]:
 
-1. **Rename file** `Scripts/CUCO/projects/keyframe/CUCO Keyframe.lua` → `CUCO Keyframer.lua` via `git mv` (user confirmed in s327). Note: existing local action-list binding will break — re-add after.
-2. **Fix version drift**: header `@version 0.6.0` → match `local SCRIPT_VERSION`. **Decision needed before this step**: bump `SCRIPT_VERSION` from `0.7.0` to `1.0.0` if this is the publication-ready cut, OR keep `0.7.0`. Ask user.
+1. **Rename file** `Scripts/CUCO/projects/keyframe/CUCO Keyframe.lua` → `CUCO Keyframer.lua` via `git mv` (user confirmed in s327). Note: existing local action-list binding will break — re-add after. → **shipped at `bf9e167`**.
+2. **Fix version drift**: header `@version 0.6.0` → match `local SCRIPT_VERSION`. **Decision needed before this step**: bump `SCRIPT_VERSION` from `0.7.0` to `1.0.0` if this is the publication-ready cut, OR keep `0.7.0`. Ask user. → **user chose stay at 0.7.0; shipped at `bf9e167`**.
 3. **Refactor `dofile` resolution** — replace the `(.*/CUCO/)` regex anchor with a script-relative resolver:
    ```lua
    local theme = (function()
@@ -63,12 +65,17 @@ After protocols above, **start T-019 (Keyframer prep)**. Concrete sub-steps in o
      return dofile(dir .. "../_shared/cuco_imgui_theme.lua")
    end)()
    ```
-   Survives ReaPack install where the package dir is NOT named `CUCO`.
-4. **Add `@provides`** header line: `@provides ../_shared/cuco_imgui_theme.lua` so ReaPack bundles the theme module.
-5. **Tighten `@changelog`** — add a 0.7.0 entry (envelope shape picker + shared theme) for `reapack-index` per-version changelog generation.
-6. **Verify load** — REAPER reload + run Keyframer once from the action list (path must be re-added due to rename); confirm GUI renders + theme applied.
+   Survives ReaPack install where the package dir is NOT named `CUCO`. → **[SUPERSEDED s327] shipped initially at `bf9e167`, then revised at `163dba1` to dual-path (same-dir → `../_shared/` fallback) when rename-on-install was forced. See "Caveats" below.**
+4. **Add `@provides`** header line: `@provides ../_shared/cuco_imgui_theme.lua` so ReaPack bundles the theme module. → **[SUPERSEDED s327] shipped at `bf9e167` initially; revised at `163dba1` to `@provides ../_shared/cuco_imgui_theme.lua > cuco_imgui_theme.lua` (rename-on-install). Plain form rejected by `reapack-index --check` because both Keyframer and Random Walk claim the same destination — ReaPack disallows cross-package shared `@provides`. Rename gives each package its own dest path.**
+5. **Tighten `@changelog`** — add a 0.7.0 entry (envelope shape picker + shared theme) for `reapack-index` per-version changelog generation. → **shipped at `bf9e167` (added 0.7.0 + 0.6.0 entries)**.
+6. **Verify load** — REAPER reload + run Keyframer once from the action list (path must be re-added due to rename); confirm GUI renders + theme applied. → **user-confirmed in s327 ("confirmed working" + "all good" after T-020 also landed)**.
 
-After T-019 lands, T-020 mirrors the pattern for Random Walk (no rename, just `dofile` + `@provides` + `@license`).
+After T-019 lands, T-020 mirrors the pattern for Random Walk (no rename, just `dofile` + `@provides` + `@license`). → **shipped at `163dba1`. Plus an unplanned rename: user requested `CUCO Random Walk GUI.lua` → `CUCO Random Walk.lua` (drop legacy "GUI" suffix); the stale "Chain Drunk Walk (GUI)" dialog title at line 23 was also fixed in the same commit.**
+
+### Caveats from s327 (additive)
+
+- **ReaPack cross-package shared-file rule discovered.** Two packages cannot both `@provides` the same destination path. Forced a pivot to the `source > destination` rename-on-install syntax for the shared theme module. Both Keyframer and Random Walk now bundle their own copy at install (single source of truth in repo at `_shared/`; renamed into each package's dir on install). Resolver became dual-path: same-dir for installed users, `../_shared/` fallback for dev mode.
+- **"Unnamed index" warning still surfaces from `reapack-index --check`** despite `--name="CUCO - REAPER Scripts"` being present in `.reapack-index.conf`. Deferred to T-021 (publish step) — needs diagnosis before generating the published `index.xml`.
 
 ## Discipline rules (this work's failure modes)
 

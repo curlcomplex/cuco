@@ -24,20 +24,20 @@ __pycache__/
 # Preserved git histories from before the reorg, renamed .git → .git_legacy
 # so the parent repo doesn't try to track them as broken submodules.
 # Kept on disk for forensic reference; ignored here.
-archive/cuco-op-v1/.git_legacy/
-archive/cuco-stacks/.git_legacy/
-experiments/sound-semantic-parser-panns/audioset_tagging_cnn/.git_legacy/
+Scripts/CUCO/archive/cuco-op-v1/.git_legacy/
+Scripts/CUCO/archive/cuco-stacks/.git_legacy/
+Scripts/CUCO/experiments/sound-semantic-parser-panns/audioset_tagging_cnn/.git_legacy/
 
 # curlop is its own active project with its own git repo. It lives at
-# projects/curlop/ on disk for convenience but is NOT tracked here —
+# Scripts/CUCO/projects/curlop/ on disk for convenience but is NOT tracked here —
 # push it to its own GitHub repo when ready.
-projects/curlop/
+Scripts/CUCO/projects/curlop/
 
 # Large reference content kept on disk but not version-controlled:
 # - CUCO-OP v1's private/ folder contains 400+ MB of vendored IDE source
 #   (ned, zep, etc.) used as reference; not your code.
 # - PANNs audioset_tagging_cnn/ is a third-party clone (~320 MB).
 # - pann_env/ is a Python virtualenv.
-archive/cuco-op-v1/private/
-experiments/sound-semantic-parser-panns/audioset_tagging_cnn/
-experiments/sound-semantic-parser-panns/pann_env/
+Scripts/CUCO/archive/cuco-op-v1/private/
+Scripts/CUCO/experiments/sound-semantic-parser-panns/audioset_tagging_cnn/
+Scripts/CUCO/experiments/sound-semantic-parser-panns/pann_env/

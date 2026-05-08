@@ -35,7 +35,7 @@ for (const n of pending) {
 
 lines.push('');
 lines.push('After consuming a handover, clear the flag:');
-lines.push('  node scripts/ig/cuco_scripts_ig.cjs update <id> --props \'{"handover_pending":false}\'');
+lines.push('  node tools/ig/cuco_scripts_ig.cjs update <id> --props \'{"handover_pending":false}\'');
 lines.push('===============================================');
 
 process.stdout.write(lines.join('\n') + '\n');

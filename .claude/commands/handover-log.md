@@ -20,7 +20,7 @@ Pairs with the `handover-log-nudge.cjs` Stop hook — saying phrases like "out o
 Ask one question: what kind? Most common is `task` for deferred work, `bug` for broken behavior found in passing, `concept` for an idea worth exploring later. Then create:
 
 ```bash
-node scripts/ig/cuco_scripts_ig.cjs create <type> "<title>" \
+node tools/ig/cuco_scripts_ig.cjs create <type> "<title>" \
   --desc "<one-paragraph what + why>" \
   --priority <N>
 ```
@@ -40,7 +40,7 @@ Tight. 5-10 lines is fine.
 ### Step 3 — Flag the IG node
 
 ```bash
-node scripts/ig/cuco_scripts_ig.cjs update <NODE-ID> --props '{
+node tools/ig/cuco_scripts_ig.cjs update <NODE-ID> --props '{
   "handover_pending": true,
   "handover_doc": ".planning/handovers/<DATE>-<NODE-ID>-deferred-<slug>.md",
   "handover_session": "s<NNN>"

@@ -1,0 +1,432 @@
+desc:CUCO ReCenter (Stage 4.3 — Spec Mode) — Intensity / Response / Mono Filter / Lookahead / Angle / Width / MS / Multiband / Output
+
+//------------------------------------------------------------
+// Sliders (spec-aligned)
+//------------------------------------------------------------
+slider1:100<0,200,1>Intensity (%)
+slider2:30<0,100,1>Response (%)         // higher = faster
+slider3:0<0,300,1>Mono Filter (Hz)      // 0 = off (center lows below f_c)
+slider4:0<0,60,1>Lookahead (ms)
+
+slider5:0<-90,90,0.1>Angle (deg)
+slider6:100<-200,200,1>Width (%)
+
+slider7:0<0,1,1{Off,On}>MS Input
+slider8:0<0,1,1{Off,On}>Multiband
+slider9:0<-24,24,0.1>Output (dB)
+
+//------------------------------------------------------------
+// Constants & globals
+//------------------------------------------------------------
+@init
+pi = $pi;
+inv_sqrt2 = 0.7071067811865475;
+tiny = exp(log(10)*(-24));
+eps  = exp(log(10)*(-12));
+
+// state
+g_lin = 1;
+k_width = 1;
+alpha_sm = 0;             // smoothed correction (rad)
+alpha_target = 0;
+alpha_prev = 0;           // for slew limiter
+disp_az_deg = 0;
+az = 0;                   // last azimuth (rad)
+
+// meter timing constants (match CUCO ReCenter)
+meter_refresh_hz = 30;
+tau_meter_s = 0.25;       // ~250 ms smoothing
+
+// meters (output)
+accOutL2 = accOutR2 = accOutLR = 0;
+meter_rmsL = meter_rmsR = -120;
+meter_rho = 0;
+// Initialize smoothed meter values (critical for averaging)
+y_rmsL = y_rmsR = -120;
+y_rho = 0;
+// Initialize meter accumulation variables
+meter_count = 0;
+meter_samples_per_refresh = max(1, floor(srate / meter_refresh_hz));
+// Set averaging factor to match CUCO ReCenter exactly
+a_meters = 1 - exp(-(meter_samples_per_refresh/srate)/tau_meter_s);
+
+// analysis (fullband)
+ana_ms = 50;
+ana_N = 0;
+ana_n = 0;
+EL = ER = C = 0;
+
+// multiband analysis bands (fixed)
+f1=150; f2=1200; f3=5500;
+Qbw = 0.7071067811865475;
+
+// coeffs (LP/HP) for each split (normalized RBJ) — filled in @slider
+b0lp1=b1lp1=b2lp1=a1lp1=a2lp1=0;  b0hp1=b1hp1=b2hp1=a1hp1=a2hp1=0;
+b0lp2=b1lp2=b2lp2=a1lp2=a2lp2=0;  b0hp2=b1hp2=b2hp2=a1hp2=a2hp2=0;
+b0lp3=b1lp3=b2lp3=a1lp3=a2lp3=0;  b0hp3=b1hp3=b2hp3=a1hp3=a2hp3=0;
+
+// multiband accumulators (per band)
+EL1=ER1=C1=0; EL2=ER2=C2=0; EL3=ER3=C3=0; EL4=ER4=C4=0;
+
+// Mono Filter (M/S-domain LR4) coeffs
+mf_fc = 0;
+mf_b0=mf_b1=mf_b2=mf_a1=mf_a2=0;
+
+// response smoothing
+a_resp = 0.005;
+
+// ---------- biquad state arrays (indexed) ----------
+// Explicit memory allocation (critical fix)
+z1 = 100;   // Start at memory location 100 for z1 states
+z2 = 200;   // Start at memory location 200 for z2 states
+
+// IDs for per-filter states
+FID_L_LP1=0;  FID_L_HP1=1;  FID_R_LP1=2;  FID_R_HP1=3;
+FID_L_LP2=4;  FID_L_HP2=5;  FID_R_LP2=6;  FID_R_HP2=7;
+FID_L_LP3=8;  FID_L_HP3=9;  FID_R_LP3=10; FID_R_HP3=11;
+FID_M_LP1=12; FID_M_LP2=13; FID_S_LP1=14; FID_S_LP2=15;
+
+// tighter-feel internals
+k_raw = 1;           // 0..2 from Intensity slider
+k_eff = 1;           // capped/nonlinear effective gain
+deadband_rad = 0.25 * pi/180;   // 0.25° deadband
+
+// --- Lookahead internals (frames-based, interleaved L/R) ---
+w_frames = 0;    // write index in frames
+r_frames = 0;    // read index in frames
+N_frames = 0;    // buffer length in frames
+buf = 1000;      // interleaved: [L0,R0,L1,R1,...] - allocated at memory location 1000
+
+//------------------------------------------------------------
+// Helpers
+//------------------------------------------------------------
+function db_to_norm(db) (
+  db += 60; db /= 60;
+  min(1, max(0, db));
+);
+
+// Biquad tick using indexed states
+function biquad_tick_id(x, b0,b1,b2, a1,a2, id) (
+  y = b0*x + z1[id];
+  z1[id] = b1*x - a1*y + z2[id];
+  z2[id] = b2*x - a2*y;
+  y;
+);
+
+//------------------------------------------------------------
+// Sliders
+//------------------------------------------------------------
+@slider
+// visible controls
+k_raw = slider1 * 0.01;                // 0..2
+// nonlinear map to keep gain <= 1 but feel stronger at high settings
+k_eff = 1 - exp(-0.9 * k_raw);         // ~0.59 at 100%, ~0.75 at 200%
+
+resp_pct = slider2 * 0.01;              // 0..1 (higher = faster)
+mf_fc = slider3|0;                      // Hz, 0=off
+look_ms = slider4|0;
+
+angle_deg = slider5;
+k_width = slider6 * 0.01;               // -2..2
+ms_in = slider7|0;
+mb_on = slider8|0;
+g_lin = 10^(slider9/20);
+
+// derived: response time constant & analysis window
+resp_ms = 400 - 340*resp_pct;           // 400ms slow .. 60ms fast
+resp_ms < 20 ? resp_ms = 20;
+a_resp = 1 - exp(-1/(srate*(resp_ms*0.001)));
+
+ana_ms = 80 - 50*resp_pct;              // 80ms .. 30ms
+ana_ms < 20 ? ana_ms = 20;
+ana_N = max(32, floor(srate*(ana_ms*0.001)));
+ana_n = 0; EL=ER=C=0; EL1=ER1=C1=EL2=ER2=C2=EL3=ER3=C3=EL4=ER4=C4=0;
+
+// meters cadence (match CUCO ReCenter)
+meter_refresh_hz = 30;
+meter_samples_per_refresh = max(1, floor(srate/meter_refresh_hz));
+a_meters = 1 - exp(-(meter_samples_per_refresh/srate)/tau_meter_s);
+
+// ---- INLINE RBJ COEFFS (no pointer params) ----
+w0 = 2*pi*f1/srate; cw = cos(w0); sw = sin(w0); alpha = sw/(2*Qbw); a0 = 1+alpha;
+// LP @ f1
+b0lp1 = (1-cw)/2 / a0; b1lp1 = (1-cw)/a0; b2lp1 = (1-cw)/2 / a0; a1lp1 = -2*cw/a0; a2lp1 = (1-alpha)/a0;
+// HP @ f1
+b0hp1 = (1+cw)/2 / a0; b1hp1 = -(1+cw)/a0; b2hp1 = (1+cw)/2 / a0; a1hp1 = -2*cw/a0; a2hp1 = (1-alpha)/a0;
+
+// f2
+w0 = 2*pi*f2/srate; cw = cos(w0); sw = sin(w0); alpha = sw/(2*Qbw); a0 = 1+alpha;
+// LP @ f2
+b0lp2 = (1-cw)/2 / a0; b1lp2 = (1-cw)/a0; b2lp2 = (1-cw)/2 / a0; a1lp2 = -2*cw/a0; a2lp2 = (1-alpha)/a0;
+// HP @ f2
+b0hp2 = (1+cw)/2 / a0; b1hp2 = -(1+cw)/a0; b2hp2 = (1+cw)/2 / a0; a1hp2 = -2*cw/a0; a2hp2 = (1-alpha)/a0;
+
+// f3
+w0 = 2*pi*f3/srate; cw = cos(w0); sw = sin(w0); alpha = sw/(2*Qbw); a0 = 1+alpha;
+// LP @ f3
+b0lp3 = (1-cw)/2 / a0; b1lp3 = (1-cw)/a0; b2lp3 = (1-cw)/2 / a0; a1lp3 = -2*cw/a0; a2lp3 = (1-alpha)/a0;
+// HP @ f3
+b0hp3 = (1+cw)/2 / a0; b1hp3 = -(1+cw)/a0; b2hp3 = (1+cw)/2 / a0; a1hp3 = -2*cw/a0; a2hp3 = (1-alpha)/a0;
+
+// mono filter coeffs (LP for M and S, LR4)
+mf_fc > 0 ? (
+  w0 = 2*pi*mf_fc/srate; cw = cos(w0); sw = sin(w0); alpha = sw/(2*Qbw); a0 = 1+alpha;
+  mf_b0 = (1-cw)/2 / a0; mf_b1 = (1-cw)/a0; mf_b2 = (1-cw)/2 / a0; mf_a1 = -2*cw/a0; mf_a2 = (1-alpha)/a0;
+);
+
+// --- Lookahead config + PDC (frames-based, interleaved) ---
+look_samps = floor(srate*(look_ms*0.001));
+
+// size ring buffer in FRAMES; samples are interleaved in buf[]
+N_frames = max(1024, look_samps + 1024);
+
+// keep indices valid when size changes
+w_frames >= N_frames ? w_frames = 0;
+r_frames = w_frames - look_samps;
+r_frames < 0 ? r_frames += N_frames;
+
+// report latency to REAPER (Plugin Delay Compensation)
+pdc_delay  = look_samps;   // total samples of delay
+pdc_bot_ch = 0;            // first processed channel
+pdc_top_ch = 1;            // last processed channel (stereo)
+
+//------------------------------------------------------------
+// Audio
+//------------------------------------------------------------
+@sample
+// denormal guard
+spl0 += tiny; spl0 -= tiny;
+spl1 += tiny; spl1 -= tiny;
+
+// optional MS decode at input
+ms_in ? (
+  M_in = spl0; S_in = spl1;
+  L_in = (M_in + S_in)*inv_sqrt2;
+  R_in = (M_in - S_in)*inv_sqrt2;
+) : (
+  L_in = spl0; R_in = spl1;
+);
+
+// ---------- Multiband analysis (chained splits, analysis only) ----------
+mb_on ?
+(
+  // Split 1 (150 Hz)
+  L_lp1 = biquad_tick_id(L_in, b0lp1,b1lp1,b2lp1, a1lp1,a2lp1, FID_L_LP1);
+  L_hp1 = biquad_tick_id(L_in, b0hp1,b1hp1,b2hp1, a1hp1,a2hp1, FID_L_HP1);
+  R_lp1 = biquad_tick_id(R_in, b0lp1,b1lp1,b2lp1, a1lp1,a2lp1, FID_R_LP1);
+  R_hp1 = biquad_tick_id(R_in, b0hp1,b1hp1,b2hp1, a1hp1,a2hp1, FID_R_HP1);
+
+  // Split 2 (1200 Hz) on HP1
+  L_mid_pre = biquad_tick_id(L_hp1, b0lp2,b1lp2,b2lp2, a1lp2,a2lp2, FID_L_LP2);
+  L_highpre = biquad_tick_id(L_hp1, b0hp2,b1hp2,b2hp2, a1hp2,a2hp2, FID_L_HP2);
+  R_mid_pre = biquad_tick_id(R_hp1, b0lp2,b1lp2,b2lp2, a1lp2,a2lp2, FID_R_LP2);
+  R_highpre = biquad_tick_id(R_hp1, b0hp2,b1hp2,b2hp2, a1hp2,a2hp2, FID_R_HP2);
+
+  // Split 3 (5500 Hz) on highpre
+  L_hi_mid = biquad_tick_id(L_highpre, b0lp3,b1lp3,b2lp3, a1lp3,a2lp3, FID_L_LP3);
+  L_hi     = biquad_tick_id(L_highpre, b0hp3,b1hp3,b2hp3, a1hp3,a2hp3, FID_L_HP3);
+  R_hi_mid = biquad_tick_id(R_highpre, b0lp3,b1lp3,b2lp3, a1lp3,a2lp3, FID_R_LP3);
+  R_hi     = biquad_tick_id(R_highpre, b0hp3,b1hp3,b2hp3, a1hp3,a2hp3, FID_R_HP3);
+
+  // Bands: B1=L_lp1/R_lp1, B2=L_mid_pre/R_mid_pre, B3=L_hi_mid/R_hi_mid, B4=L_hi/R_hi
+  EL1 += L_lp1*L_lp1; ER1 += R_lp1*R_lp1; C1 += L_lp1*R_lp1;
+  EL2 += L_mid_pre*L_mid_pre; ER2 += R_mid_pre*R_mid_pre; C2 += L_mid_pre*R_mid_pre;
+  EL3 += L_hi_mid*L_hi_mid; ER3 += R_hi_mid*R_hi_mid; C3 += L_hi_mid*R_hi_mid;
+  EL4 += L_hi*L_hi; ER4 += R_hi*R_hi; C4 += L_hi*R_hi;
+);
+
+// fullband accumulators (always)
+EL += L_in*L_in; ER += R_in*R_in; C += L_in*R_in;
+ana_n += 1;
+
+// when window completes: compute target angle
+ana_n >= ana_N ? (
+  // fullband azimuth
+  az = 0.5*atan2(ER-EL, 2*C + eps);
+
+  // multiband blend (if on)
+  mb_on ? (
+    // Improved numerical stability for coherence calculations
+    denom1 = sqrt(max(eps, EL1*ER1 + eps)); w1 = denom1; r1 = (denom1 > eps) ? abs(C1/denom1) : 0;
+    denom2 = sqrt(max(eps, EL2*ER2 + eps)); w2 = denom2; r2 = (denom2 > eps) ? abs(C2/denom2) : 0;
+    denom3 = sqrt(max(eps, EL3*ER3 + eps)); w3 = denom3; r3 = (denom3 > eps) ? abs(C3/denom3) : 0;
+    denom4 = sqrt(max(eps, EL4*ER4 + eps)); w4 = denom4; r4 = (denom4 > eps) ? abs(C4/denom4) : 0;
+
+    // band azimuths
+    az1 = 0.5*atan2(ER1-EL1, 2*C1 + eps);
+    az2 = 0.5*atan2(ER2-EL2, 2*C2 + eps);
+    az3 = 0.5*atan2(ER3-EL3, 2*C3 + eps);
+    az4 = 0.5*atan2(ER4-EL4, 2*C4 + eps);
+
+    // weights: energy * coherence; emphasize mid & hi bands slightly
+    e1 = (EL1+ER1); e2=(EL2+ER2); e3=(EL3+ER3); e4=(EL4+ER4);
+    wsum = e1*r1*0.8 + e2*r2*1.0 + e3*r3*1.1 + e4*r4*0.9 + eps;
+    az_blend = (az1*e1*r1*0.8 + az2*e2*r2*1.0 + az3*e3*r3*1.1 + az4*e4*r4*0.9) / wsum;
+
+    // combine with fullband
+    az = 0.35*az + 0.65*az_blend;
+  );
+
+  // target correction (negative to pull toward zero), with deadband and capped gain
+  alpha_target = -k_eff * az;
+  abs(az) < deadband_rad ? alpha_target = 0;
+
+  // display
+  disp_az_deg = az * 180/pi;
+
+  // reset
+  EL=ER=C=0; EL1=ER1=C1=EL2=ER2=C2=EL3=ER3=C3=EL4=ER4=C4=0;
+  ana_n = 0;
+);
+
+// -------- tighter feel smoothing + slew limiter --------
+// error-adaptive extra speed (faster when far from center), intensity boost >100%
+err   = abs(az);
+a_err = 1 - exp(- err / (5 * pi/180));        // speeds up beyond ~5°
+speed_x = 1 + 1.6 * max(0, k_raw - 1);        // more pep over 100%
+a_eff = min(0.99, a_resp * speed_x * (0.6 + 0.4 * a_err));
+alpha_sm += a_eff * (alpha_target - alpha_sm);
+
+// slew limit per-sample to avoid HF buzz
+max_deg_per_s = 360 * (0.6 + 0.8 * k_raw);    // scale with intensity
+max_step = (max_deg_per_s * pi/180) / srate;
+d = alpha_sm - alpha_prev;
+d >  max_step ? alpha_sm = alpha_prev +  max_step;
+d < -max_step ? alpha_sm = alpha_prev -  max_step;
+alpha_prev = alpha_sm;
+
+// total angle = manual + auto
+alpha_total = (slider5 * pi/180) + alpha_sm;
+cs = cos(alpha_total);
+sn = sin(alpha_total);
+
+// rotate
+rotL =  L_in*cs - R_in*sn;
+rotR =  L_in*sn + R_in*cs;
+
+// M/S width
+M = (rotL + rotR)*inv_sqrt2;
+S = (rotL - rotR)*inv_sqrt2;
+S *= k_width;
+
+// Mono Filter (center lows below fc) in M/S domain
+mf_fc > 0 ? (
+  // LP4 on M
+  m1 = biquad_tick_id(M, mf_b0,mf_b1,mf_b2, mf_a1,mf_a2, FID_M_LP1);
+  M_low = biquad_tick_id(m1, mf_b0,mf_b1,mf_b2, mf_a1,mf_a2, FID_M_LP2);
+
+  // LP4 on S
+  s1 = biquad_tick_id(S, mf_b0,mf_b1,mf_b2, mf_a1,mf_a2, FID_S_LP1);
+  S_low = biquad_tick_id(s1, mf_b0,mf_b1,mf_b2, mf_a1,mf_a2, FID_S_LP2);
+
+  // remove low S (center lows)
+  S = S - S_low;
+);
+
+// back to L/R
+procL = (M + S)*inv_sqrt2;
+procR = (M - S)*inv_sqrt2;
+
+// output gain
+procL *= g_lin;
+procR *= g_lin;
+
+// --- Lookahead (output only) with interleaved ring buffer ---
+look_samps > 0 ?
+(
+  // write current processed frame with bounds checking
+  baseW = w_frames + w_frames;        // 2 * w_frames
+  (baseW + 1 < N_frames * 2) ? (
+    buf[baseW]   = procL;
+    buf[baseW+1] = procR;
+  );
+
+  // read frame 'look_samps' in the past with bounds checking
+  baseR = r_frames + r_frames;        // 2 * r_frames
+  (baseR + 1 < N_frames * 2) ? (
+    outL = buf[baseR];
+    outR = buf[baseR+1];
+  ) : (
+    outL = procL; outR = procR;  // fallback to bypass
+  );
+
+  // advance and wrap
+  w_frames += 1;  w_frames >= N_frames ? w_frames = 0;
+  r_frames += 1;  r_frames >= N_frames ? r_frames = 0;
+)
+:
+(
+  outL = procL; 
+  outR = procR;
+);
+
+// write
+spl0 = outL;
+spl1 = outR;
+
+// meters (output, match CUCO ReCenter: meter procL/procR, pre-lookahead)
+// Dynamic update of meter refresh samples
+meter_samples_per_refresh = max(1, floor(srate / meter_refresh_hz));
+
+accOutL2 += procL*procL; accOutR2 += procR*procR; accOutLR += procL*procR; meter_count += 1;
+(meter_count >= meter_samples_per_refresh) ? (
+  meanL2 = accOutL2 / max(1, meter_count);
+  meanR2 = accOutR2 / max(1, meter_count);
+  rmsLdB = (meanL2 > eps) ? (10*log(meanL2)/log(10)) : -120;
+  rmsRdB = (meanR2 > eps) ? (10*log(meanR2)/log(10)) : -120;
+  
+  denom = sqrt(max(eps, accOutL2*accOutR2));
+  rho_raw = (denom > eps) ? (accOutLR/denom) : 0;
+  rho_raw = min(1, max(-1, rho_raw));
+  
+  y_rmsL += a_meters * (rmsLdB - y_rmsL);
+  y_rmsR += a_meters * (rmsRdB - y_rmsR);
+  y_rho  += a_meters * (rho_raw - y_rho);
+  
+  meter_rmsL = y_rmsL; meter_rmsR = y_rmsR; meter_rho = y_rho;
+  
+  accOutL2 = accOutR2 = accOutLR = 0; meter_count = 0;
+); 
+
+//------------------------------------------------------------
+// UI (compact)
+//------------------------------------------------------------
+@gfx 520 200
+gfx_set(0.09,0.09,0.1,1); gfx_rect(0,0,gfx_w,gfx_h);
+gfx_set(0.85,0.85,0.9,1); gfx_x=12; gfx_y=10;
+gfx_printf("CUCO ReCenter — Stage 4.3 (Spec Mode)");
+
+gfx_y=32; gfx_x=12;
+gfx_printf("Intensity %.0f%%   Response %.0f%%   Mono %.0f Hz   Lookahead %.0f ms",
+           slider1, slider2, slider3, slider4);
+
+gfx_y=50; gfx_x=12;
+gfx_printf("Angle %.1f°   Width %.0f%%   MS %s   Multiband %s   Out %.1f dB",
+           slider5, slider6, slider7?"ON":"OFF", slider8?"ON":"OFF", slider9);
+
+
+// --- Robust meters from CUCO ReCenter ---
+bar_w=280; bar_h=14;
+
+gfx_set(0.2,0.6,0.9,1);
+gfx_x=12; gfx_y=74; gfx_rect(gfx_x,gfx_y,bar_w,bar_h,0);
+normL=db_to_norm(meter_rmsL); gfx_rect(gfx_x,gfx_y,bar_w*normL,bar_h,1);
+gfx_set(0.7,0.7,0.8,1); gfx_x=12+bar_w+8; gfx_y=74; gfx_printf("L: %.1f dBFS", meter_rmsL);
+
+gfx_set(0.9,0.5,0.2,1);
+gfx_x=12; gfx_y=94; gfx_rect(gfx_x,gfx_y,bar_w,bar_h,0);
+normR=db_to_norm(meter_rmsR); gfx_rect(gfx_x,gfx_y,bar_w*normR,bar_h,1);
+gfx_set(0.7,0.7,0.8,1); gfx_x=12+bar_w+8; gfx_y=94; gfx_printf("R: %.1f dBFS", meter_rmsR);
+
+gfx_set(0.8,0.8,0.85,1);
+gfx_x=12; gfx_y=118; gfx_printf("Correlation");
+gfx_x=12; gfx_y=134; gfx_rect(12,134,bar_w,10,0);
+rho_len=(meter_rho*0.5+0.5)*bar_w;
+col_pos=max(0,meter_rho); col_neg=max(0,-meter_rho);
+gfx_set(0.2*(1-col_pos)+0.8*col_neg,0.8*col_pos,0.2*(1-col_pos),1);
+gfx_rect(12,134,rho_len,10,1);
+
+gfx_set(0.85,0.85,0.9,1);
+gfx_x=12; gfx_y=156;
+gfx_printf("Azimuth: %.2f°   Corr: %.2f", disp_az_deg, meter_rho);
+

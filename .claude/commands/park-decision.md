@@ -22,7 +22,7 @@ Tight. Half a screen.
 ### Step 2 — Create the concept IG node
 
 ```bash
-node scripts/ig/cuco_scripts_ig.cjs create concept "<one-line title>" \
+node tools/ig/cuco_scripts_ig.cjs create concept "<one-line title>" \
   --desc-file .planning/parked/<DATE>-<slug>.md \
   --doc .planning/parked/<DATE>-<slug>.md \
   --priority 4
@@ -31,7 +31,7 @@ node scripts/ig/cuco_scripts_ig.cjs create concept "<one-line title>" \
 If the parked decision relates to an existing feature, edge it:
 
 ```bash
-node scripts/ig/cuco_scripts_ig.cjs edge CON-NNN F-NNN relates_to
+node tools/ig/cuco_scripts_ig.cjs edge CON-NNN F-NNN relates_to
 ```
 
 ### Step 3 — Return to current work in ONE line

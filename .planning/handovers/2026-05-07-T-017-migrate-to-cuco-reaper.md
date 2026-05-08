@@ -6,7 +6,7 @@ Migration designed, not started. JSFX work landed at `~/Library/Application Supp
 
 ## Read first
 
-1. **`T-017`** (`node scripts/ig/cuco_scripts_ig.cjs T-017`) — full migration sequence in the description; read it first before doing anything.
+1. **`T-017`** (`node tools/ig/cuco_scripts_ig.cjs T-017`) — full migration sequence in the description; read it first before doing anything.
 2. **`~/Library/Application Support/REAPER/Effects/CUCO_plugins/docs/jsfx-capabilities.md`** — JSFX gotchas this session learned (EEL2 has no `<<`; `ui_setup() ≠ ui_start()`; `-`-prefix sliders; widget memory must live above `m[~2940]`). Stays valid after the move; will land in `.planning/research/` per migration step 6.
 3. **`~/Library/Application Support/REAPER/Effects/CUCO_plugins/docs/boom-recenter-reference.md`** — BOOM ReCenter spec, reference for `CUCO ReCenter v5`.
 4. **`~/Library/Application Support/REAPER/Effects/CUCO_plugins/docs/gui-research.md`** — GUI library landscape; the `Tukan/ui-lib.jsfx-inc` is `geraintluff/jsfx-ui-lib`.

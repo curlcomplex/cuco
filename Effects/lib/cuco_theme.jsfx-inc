@@ -1,0 +1,132 @@
+// CUCO theme — palette, fonts, and frame setup for the CUCO plugin suite.
+//
+// Built on top of geraintluff/jsfx-ui-lib (`ui-lib.jsfx-inc`). We use
+// ui-lib's layout/mouse/automate plumbing but draw our own widgets, so we
+// don't inherit ui-lib's themed gloss. Include order in a plugin:
+//
+//   import Tukan/ui-lib.jsfx-inc
+//   import CUCO/lib/cuco_theme.jsfx-inc
+//   import CUCO/lib/cuco_widgets.jsfx-inc
+//
+// Then in @gfx:
+//   cuco_ui_begin();
+//     ... layout + cuco_knob etc ...
+//   cuco_ui_end();
+
+@init
+
+// --------------------------------------------------------------------
+// Palette — muted, high-contrast. Two accents: cyan (primary) + amber
+// (secondary, for warnings / bipolar negatives).
+// --------------------------------------------------------------------
+
+function cuco_col_bg()         ( ui_color( 18,  20,  24); );
+function cuco_col_panel()      ( ui_color( 28,  31,  36); );
+function cuco_col_panel_hi()   ( ui_color( 36,  40,  46); );
+function cuco_col_track()      ( ui_color( 52,  58,  66); );
+function cuco_col_text()       ( ui_color(218, 224, 232); );
+function cuco_col_text_dim()   ( ui_color(132, 140, 152); );
+function cuco_col_text_faint() ( ui_color( 78,  84,  92); );
+function cuco_col_accent()     ( ui_color(108, 196, 220); );  // cyan
+function cuco_col_accent_dim() ( ui_color( 56,  98, 110); );
+function cuco_col_warn()       ( ui_color(220, 168,  82); );  // amber
+function cuco_col_border()     ( ui_color( 44,  48,  54); );
+
+// --------------------------------------------------------------------
+// Type
+// --------------------------------------------------------------------
+
+function cuco_font_label()  ( ui_font("Inter", 11, 0, 0); );
+function cuco_font_value()  ( ui_font("Inter", 12, 0, 0); );
+function cuco_font_title()  ( ui_font("Inter", 14, 1, 0); );
+function cuco_font_micro()  ( ui_font("Inter", 9,  0, 0); );
+
+// --------------------------------------------------------------------
+// Frame
+// --------------------------------------------------------------------
+
+// ui-lib requires an explicit one-time ui_setup() call to allocate its
+// screen-stack and drawconfig memory. Without it, ui_screen() returns the
+// literal "error" and ui_system() falls through to the error display
+// (the "Error: #" symptom). We allocate at address 0 — ui-lib reserves
+// roughly 2940 slots from there. Plugin @sample buffers must live above
+// that range (see CUCO_MEM_BASE in plugins).
+//
+// cuco_ui_begin(design_w, design_h) — recommended; the GUI scales
+// proportionally as the window is resized, with the design size taken as
+// the 1.0× reference.
+function cuco_ui_begin(design_w, design_h) local(sx, sy, s) (
+  !uix_hassetup ? ui_setup(0);
+  ui_start("main");
+  // ui_start() overwrites gfx_clear / gfx_a / gfx_mode / gfx_dest, so any
+  // theming has to happen *after* it.
+  gfx_clear = 18 + 20*256 + 24*65536;  // matches cuco_col_bg
+
+  // Uniform scale: fit-to-window without clipping. Whichever axis is more
+  // constrained determines the scale factor. ui_retina(s) multiplies all
+  // ui_left/top/width/height + font sizes by s while keeping the logical
+  // layout calls (ui_split_top(220) etc.) numerically the same.
+  design_w > 0 && design_h > 0 ? (
+    sx = gfx_w / design_w;
+    sy = gfx_h / design_h;
+    s = min(sx, sy);
+    s < 0.5 ? s = 0.5;        // floor; tiny windows don't shrink to dust
+    s > 4   ? s = 4;          // ceiling; huge windows don't bloat fonts
+    ui_retina(s);
+  ) : (
+    ui_retina(1);
+  );
+
+  cuco_font_label();
+  cuco_col_text();
+  ui_padding(8, 6);
+);
+
+// Legacy 0-arg form: no scaling, layout stays in pixel coordinates of the
+// live window. Kept for any caller that hasn't been updated yet.
+function cuco_ui_begin() (
+  cuco_ui_begin(0, 0);
+);
+
+// Frame-end is a no-op for single-screen plugins. (ui_system() is a
+// fallback renderer for unrecognized screens, not a frame-finisher; calling
+// it draws "Unknown screen: ..." over your UI.)
+function cuco_ui_end() (
+  0;
+);
+
+// --------------------------------------------------------------------
+// Decorations — used by widgets, also handy for plugin-level chrome.
+// --------------------------------------------------------------------
+
+// Filled rounded panel inside the current rect.
+function cuco_panel() (
+  ui_push();
+    cuco_col_panel();
+    gfx_a = 1;
+    gfx_roundrect(ui_left(), ui_top(), ui_width()-1, ui_height()-1, 4, 1);
+  ui_pop();
+);
+
+// 1-px hairline border around the current rect.
+function cuco_hairline() (
+  ui_push();
+    cuco_col_border();
+    gfx_a = 1;
+    gfx_rect(ui_left(),                ui_top(),               ui_width(), 1);
+    gfx_rect(ui_left(),                ui_top()+ui_height()-1, ui_width(), 1);
+    gfx_rect(ui_left(),                ui_top(),               1,          ui_height());
+    gfx_rect(ui_left()+ui_width()-1,   ui_top(),               1,          ui_height());
+  ui_pop();
+);
+
+// Title bar — call after ui_split_top(N).
+function cuco_title(name) (
+  ui_push();
+    cuco_font_title();
+    cuco_col_text();
+    ui_align(0, 0.5);
+    ui_pad(2, 0);
+    ui_text(name);
+  ui_pop();
+);

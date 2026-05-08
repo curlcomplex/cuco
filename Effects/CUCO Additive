@@ -1,0 +1,61 @@
+desc: DragDrop SPEAR Data Loader (JSFX, test)
+
+slider1:DoLoad=0<0,1,1>Parse Now
+
+@init
+gfx_w = 500;
+gfx_h = 100;
+filename = "";
+status = "No file loaded.";
+buffer_size = 500000; // Adjust as needed
+data_pos = 0;
+data[] = 0;
+
+@gfx
+gfx_set(0.15,0.17,0.2,1);
+gfx_rect(0,0,gfx_w,gfx_h);
+gfx_set(1,1,1,1);
+gfx_x = 10; gfx_y = 20;
+gfx_drawstr("Drop SPEAR .txt here\n\n" + status);
+
+// Drag/drop handler
+idx = gfx_getdropfile(0, dropped_filename);
+(idx >= 0) ? (
+    filename = dropped_filename;
+    status = "Ready to parse: " + filename;
+    slider1 = 1; // auto trigger parse for demo
+);
+
+@slider
+(slider1 > 0 && filename != "") ? (
+    status = "Parsing...";
+    // Read file byte by byte
+    file = file_open(filename);
+    (file >= 0) ? (
+        str = "";
+        data_pos = 0;
+        while (
+            c = file_read(file);
+            (c >= 0) && (data_pos < buffer_size);
+        ) (
+            (c == 10 || c == 13 || c == 32) ? ( // newline or space
+                (strlen(str) > 0) ? (
+                    val = strtod(str);
+                    data[data_pos] = val;
+                    data_pos += 1;
+                    str = "";
+                );
+            ) : (
+                str += sprintf("%c", c);
+            );
+        );
+        file_close(file);
+        status = "Loaded " + data_pos + " numbers.";
+    ) : (
+        status = "File open error.";
+    );
+    slider1 = 0; // Reset trigger
+);
+
+@gfx 100
+// You could display, plot, or use your data[] array now!

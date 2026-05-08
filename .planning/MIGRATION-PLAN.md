@@ -19,7 +19,7 @@
 | Date-prefixed handovers in `.planning/handovers/` | Session bridge | **Adopt fully** — already use `.session/HANDOVER.md`, formalize to CURLOP convention |
 | ADRs in `.planning/adrs/` | Architecture decision records | **Adopt** — small, durable, high-value |
 | Specs in `.planning/specs/` | Canonical contracts (vs concept-docs in `research/`) | **Adopt** — already have de-facto spec material in `memory/` and CLAUDE.md fragments |
-| `.issues.json` + `scripts/ig/ig.cjs` (Issue Graph) | Structured node graph; replaces STATE/CAPTAINS-LOG | **Adopt fully** — port `ig.cjs` + schema, start with empty `.issues.json`, populate as work surfaces |
+| `.issues.json` + `tools/ig/ig.cjs` (Issue Graph) | Structured node graph; replaces STATE/CAPTAINS-LOG | **Adopt fully** — port `ig.cjs` + schema, start with empty `.issues.json`, populate as work surfaces |
 | `.upg` (Unified Product Graph) | Personas, journeys, strategy | **Skip** — CUCO is personal tooling, no users/journeys |
 | Persona slash commands (Julian/Jim/Urs/Smith/Gilfoyle/Dieter/Sean/Gerhard) | Character-driven advisors | **Adopt small set** — REAPER/Lua expert, ImGui UX critic, Lua quality reviewer; defer until Phase 4 |
 | Hooks: `session-start-context.cjs`, `manifesto.sh`, `fresh-handovers.cjs`, `handover-log-nudge.cjs`, `post-edit-verify-cpp.cjs` | Session discipline | **Adopt subset** — session-start context (lean), handover-log-nudge, optional luacheck post-edit |
@@ -143,7 +143,7 @@ Migrate or create in `.claude/commands/cuco/`:
 
 **Port from CURLOP**:
 
-1. **`scripts/ig/ig.cjs`** — copy from `/Users/f.god/Work/Development/CURLOP/scripts/ig/ig.cjs`. The CLI is project-agnostic (reads/writes `.issues.json` in cwd). Verify by running `node scripts/ig/ig.cjs --stats` against an empty `.issues.json`.
+1. **`tools/ig/ig.cjs`** — copy from `/Users/f.god/Work/Development/CURLOP/tools/ig/ig.cjs`. The CLI is project-agnostic (reads/writes `.issues.json` in cwd). Verify by running `node tools/ig/ig.cjs --stats` against an empty `.issues.json`.
 2. **`.issues.json`** — start empty: `{"version":"0.3.0","nodes":[],"edges":[]}`.
 3. **Schema** — adopt CURLOP's v0.3.0 node types, retyped for CUCO:
    - `milestone` (M-NNN) — broad direction (e.g. "Random Walk v1.0 distribution-ready")
@@ -189,7 +189,7 @@ Migrate or create in `.claude/commands/cuco/`:
 
 **`memory/` deprecation**: contents migrated to IG knowledge nodes + specs. The auto-memory layer (Claude's `MEMORY.md`) stays — but it points at IG nodes / spec paths instead of duplicating content.
 
-**Done when**: `.issues.json` populated with milestones + features + the seed knowledge/spec/concept nodes, three ADRs exist, three specs exist, `node scripts/ig/ig.cjs --stats` returns sane numbers, current handover's open items are logged as task nodes.
+**Done when**: `.issues.json` populated with milestones + features + the seed knowledge/spec/concept nodes, three ADRs exist, three specs exist, `node tools/ig/ig.cjs --stats` returns sane numbers, current handover's open items are logged as task nodes.
 
 **Cost**: 1 session, ~4 hours (most of it data entry, not code).
 

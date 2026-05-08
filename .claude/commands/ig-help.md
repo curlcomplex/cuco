@@ -7,7 +7,7 @@ Print the Issue Graph reference in this exact format. No additional commentary.
 ```
 === ISSUE GRAPH (IG) — CLI REFERENCE ===
 
-Binary: node scripts/ig/cuco_scripts_ig.cjs
+Binary: node tools/ig/cuco_scripts_ig.cjs
 State:  .issues.json (do NOT edit by hand)
 
 NODE TYPES:

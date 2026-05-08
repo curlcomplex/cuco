@@ -1,0 +1,65 @@
+desc:SPEAR Partial Visualizer (gmem loader, interpolation)
+
+slider1:0<0,100,0.01>Frame (interp)
+
+slider2:0<0,20000,1>Partial 1 Freq
+slider3:0<0,1,0.00001>Partial 1 Amp
+slider4:0<0,20000,1>Partial 2 Freq
+slider5:0<0,1,0.00001>Partial 2 Amp
+slider6:0<0,20000,1>Partial 3 Freq
+slider7:0<0,1,0.00001>Partial 3 Amp
+
+@init
+gmem_attach("SPEARDATA");
+frame_count = 3;
+partials_per_frame = 3;
+max_data = 1024;
+data[0] = 0;
+
+function read_gmem_data() (
+  gmem_attach("SPEARDATA");
+  len = gmem_read(0);
+  i = 0;
+  while (i < min(len, max_data)) (
+    data[i] = gmem_read(i+1);
+    i += 1;
+  );
+  frame_count = len / (partials_per_frame * 3);
+);
+
+function interp(a, b, frac) (
+  a + (b - a) * frac;
+);
+
+function update_sliders_interp(framef) (
+  low = floor(framef);
+  high = (low < frame_count-1) ? low+1 : low;
+  frac = framef - low;
+  baseL = low * partials_per_frame * 3;
+  baseH = high * partials_per_frame * 3;
+  // Partial 1
+  slider2 = interp(data[baseL+1], data[baseH+1], frac);
+  slider3 = interp(data[baseL+2], data[baseH+2], frac);
+  // Partial 2
+  slider4 = interp(data[baseL+4], data[baseH+4], frac);
+  slider5 = interp(data[baseL+5], data[baseH+5], frac);
+  // Partial 3
+  slider6 = interp(data[baseL+7], data[baseH+7], frac);
+  slider7 = interp(data[baseL+8], data[baseH+8], frac);
+);
+
+@slider
+read_gmem_data();
+update_sliders_interp(slider1);
+
+@gfx 360 180
+gfx_clear = 0.12;
+gfx_x = 10; gfx_y = 10;
+gfx_setfont(1, "Arial", 16);
+gfx_printf("Frame %.2f/%d (interp)\n", slider1, frame_count-1);
+gfx_y += 24;
+gfx_setfont(1, "Arial", 14);
+gfx_x = 10;
+gfx_printf("Partial %d: Freq %.2f Hz   Amp %.5f\n", 1, slider2, slider3); gfx_y += 20;
+gfx_printf("Partial %d: Freq %.2f Hz   Amp %.5f\n", 2, slider4, slider5); gfx_y += 20;
+gfx_printf("Partial %d: Freq %.2f Hz   Amp %.5f\n", 3, slider6, slider7); gfx_y += 20;

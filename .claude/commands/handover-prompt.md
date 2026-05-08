@@ -17,7 +17,7 @@ Terminal print between `---` markers retained as backup so the user can paste ma
 <context>
 - `git log --oneline -15` + `git branch --show-current`
 - `git status --short`
-- IG: `node scripts/ig/cuco_scripts_ig.cjs --search s<NNN>` + scan today's `updated`
+- IG: `node tools/ig/cuco_scripts_ig.cjs --search s<NNN>` + scan today's `updated`
 - Specs/research touched: `git diff --name-only HEAD~N | grep .planning`
 - CLAUDE.md: @CLAUDE.md
 </context>
@@ -59,8 +59,8 @@ Failure pattern this guards: prior handover stays `handover_pending: true` while
 
    **d. Append an IG closure note + clear the flag:**
       ```bash
-      node scripts/ig/cuco_scripts_ig.cjs update <prior-id> --note "[s<NNN>] consumed — N fixed, M pending-verify, K carried to <new-id>. Doc reconciled in-place at <doc-path>."
-      node scripts/ig/cuco_scripts_ig.cjs update <prior-id> --props '{"handover_pending":false}'
+      node tools/ig/cuco_scripts_ig.cjs update <prior-id> --note "[s<NNN>] consumed — N fixed, M pending-verify, K carried to <new-id>. Doc reconciled in-place at <doc-path>."
+      node tools/ig/cuco_scripts_ig.cjs update <prior-id> --props '{"handover_pending":false}'
       ```
 
    **e. Do NOT move the doc.** It stays at its original `.planning/handovers/<date>-<id>-<slug>.md` path. The reconciled banner + in-line annotations are how future readers see it's consumed. **Filesystem hygiene (archiving) is NOT cleanup — content currency is.** If a prior-session handover has open children whose work is ongoing, the doc MUST stay visible in the top-level dir so it's not silently buried.
@@ -184,13 +184,13 @@ If genuinely no fitting node exists, create one first (`cuco_scripts_ig.cjs crea
    Single-session bug fix may skip with reason as in CURLOP. Skipping silently is FAIL.
 5. **Set the doc on the node FIRST:**
    ```bash
-   node scripts/ig/cuco_scripts_ig.cjs update <node-id> --doc <filename>
+   node tools/ig/cuco_scripts_ig.cjs update <node-id> --doc <filename>
    ```
    Then **flag pending** in a SEPARATE call so a partial-write can't leave the flag without a doc:
    ```bash
-   node scripts/ig/cuco_scripts_ig.cjs update <node-id> --props '{"handover_pending":true,"handover_doc":"<filename>","handover_session":"s<NNN>"}'
+   node tools/ig/cuco_scripts_ig.cjs update <node-id> --props '{"handover_pending":true,"handover_doc":"<filename>","handover_session":"s<NNN>"}'
    ```
-6. **Verify** — `node scripts/ig/cuco_scripts_ig.cjs <node-id>` shows `doc:` populated AND the three properties; file exists at the path. Both must hold.
+6. **Verify** — `node tools/ig/cuco_scripts_ig.cjs <node-id>` shows `doc:` populated AND the three properties; file exists at the path. Both must hold.
 
 ### Step 7 — Output
 
@@ -205,7 +205,7 @@ Need to flag concern (priority ambiguous, work shape mixed)? One–two lines BEF
 <success_criteria>
 - **Step 0 close-out ran FIRST.** No `handover_pending: true` exists on any IG node OTHER than the one this command just flagged. Verify: `node -e 'const d=JSON.parse(require("fs").readFileSync(".issues.json","utf8")); for (const n of d.nodes||[]) if (n.properties?.handover_pending===true) console.log(n.id);'` → exactly one ID, matching this handover's umbrella node.
 - **Each consumed handover doc reconciled in-place.** Top-of-file CONSUMED banner + in-line outcome annotations on every claim it made. Doc still at its original path — no archive moves. Verify by reading the doc itself, not by counting files.
-- **Each closed-out IG node has a closure note + cleared flag** — `node scripts/ig/cuco_scripts_ig.cjs <prior-id>` shows new `[s<NNN>] consumed —` note (which references the in-place doc reconciliation), `handover_pending` absent/false, `doc_path` unchanged.
+- **Each closed-out IG node has a closure note + cleared flag** — `node tools/ig/cuco_scripts_ig.cjs <prior-id>` shows new `[s<NNN>] consumed —` note (which references the in-place doc reconciliation), `handover_pending` absent/false, `doc_path` unchanged.
 - **No archive directory created.** `ls .planning/handovers/archive/` should not exist (or be empty). Filesystem hygiene is NOT what cleanup means — see Step 0 hard rule.
 - **Referenced research/spec docs updated** — closures + carry-overs marked at-line, not in a footer.
 - **Opener LEADS w/ protocols-first block.** Status + Turn-1 below. Reordered → fail.
@@ -218,6 +218,6 @@ Need to flag concern (priority ambiguous, work shape mixed)? One–two lines BEF
 - ~one screen rendered. Tight beats comprehensive.
 - **File written** at `.planning/handovers/<YYYY-MM-DD>-<NODE-ID>-<slug>.md` containing the opener content.
 - **IG node flagged** with `handover_pending:true` + `handover_doc:<path>` + `handover_session:s<NNN>` via `cuco_scripts_ig.cjs` CLI.
-- **Verified** — `node scripts/ig/cuco_scripts_ig.cjs <node-id>` shows the three properties; file exists; SessionStart hook would surface it next session.
+- **Verified** — `node tools/ig/cuco_scripts_ig.cjs <node-id>` shows the three properties; file exists; SessionStart hook would surface it next session.
 - **Terminal block printed** between `---` as paste-fallback, plus the one-line summary `📬 Handover written: ...`.
 </success_criteria>

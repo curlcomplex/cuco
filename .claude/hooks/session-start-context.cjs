@@ -41,7 +41,7 @@ process.stdin.on('end', () => {
     const issues = JSON.parse(issuesRaw);
     output += buildIgContext(issues);
   } catch (e) {
-    output += `## Issue Graph\n(load failed: ${e.message})\nRun \`node scripts/ig/cuco_scripts_ig.cjs --stats\` manually.\n\n`;
+    output += `## Issue Graph\n(load failed: ${e.message})\nRun \`node tools/ig/cuco_scripts_ig.cjs --stats\` manually.\n\n`;
   }
 
   // --- Newest handover (one line) ---
@@ -71,8 +71,8 @@ process.stdin.on('end', () => {
   }
 
   output += `## On-demand reads (not auto-loaded)\n`;
-  output += `- Full blocker list — \`node scripts/ig/cuco_scripts_ig.cjs --children <M-id> --status open\`\n`;
-  output += `- Node detail — \`node scripts/ig/cuco_scripts_ig.cjs <id>\`\n`;
+  output += `- Full blocker list — \`node tools/ig/cuco_scripts_ig.cjs --children <M-id> --status open\`\n`;
+  output += `- Node detail — \`node tools/ig/cuco_scripts_ig.cjs <id>\`\n`;
   output += `- IG help — \`/ig-help\` slash command\n`;
   output += `- Operational rules — CLAUDE.md (auto-loaded) or \`/rules\`\n\n`;
   output += `</session-start-context>`;
@@ -91,7 +91,7 @@ function buildIgContext(issues) {
     .sort((a, b) => (a.priority || 3) - (b.priority || 3));
 
   if (milestones.length === 0) {
-    out += `## Active milestones\n(none — graph may be empty. Run \`node scripts/ig/cuco_scripts_ig.cjs --type milestone\`.)\n\n`;
+    out += `## Active milestones\n(none — graph may be empty. Run \`node tools/ig/cuco_scripts_ig.cjs --type milestone\`.)\n\n`;
   } else {
     out += `## Active milestones (${milestones.length})\n`;
     for (const m of milestones) {
@@ -151,7 +151,7 @@ function buildIgContext(issues) {
         if (parents.length) out += `  ${parents.join(' | ')}\n`;
       }
       if (blockers.length > top.length) {
-        out += `... +${blockers.length - top.length} more. Full list: \`node scripts/ig/cuco_scripts_ig.cjs --children ${currentMilestone.id} --status open\`\n`;
+        out += `... +${blockers.length - top.length} more. Full list: \`node tools/ig/cuco_scripts_ig.cjs --children ${currentMilestone.id} --status open\`\n`;
       }
     }
     out += '\n';

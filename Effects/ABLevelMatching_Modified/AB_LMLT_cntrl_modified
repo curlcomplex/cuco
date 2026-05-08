@@ -1,0 +1,81 @@
+// Copyright 2015, tb-software.com
+// All rights reserved.
+// Processes audio data from AB Master source plugin
+// by TBProAudio 2015 (www.tb-software.com)
+
+desc:AB Level Matching Control JSFX V3.3 (TBProAudio)
+options:gmem=TBProAudio_AB_LM
+
+import memorymanager.jsfx-inc
+import tbproaudio_common.jsfx-inc
+import ebur128.jsfx-inc
+import audiomeasurement.jsfx-inc
+import gfx.jsfx-inc
+
+slider1:0<0,127,1>LinkID
+slider2:1<0,1,1{Pre FX,Post FX}>Monitor
+slider3:300<10,10000,1>RMS window ms
+slider4:0<0,1,1{None,ITU-R BS.1770-4}>PreFilter
+slider5:0<0,2,1{Off,On}>Delta Monitor
+slider10:0<-15,15,0.1>Source Gain dB
+slider20:-144<-144,6,0.1>Source RMS Avg dB
+slider21:-144<-144,6,0.1>Source RMS Max dB
+slider22:-144<-144,6,0.1>Source Peak dB
+slider23:0<0,30,0.1>Source Crest dB
+slider24:-144<-144,6,0.1>Source True Peak dB
+slider30:-144<-144,6,0.1>Final RMS Avg dB
+slider31:-144<-144,6,0.1>Final RMS Max dB
+slider32:-144<-144,6,0.1>Final Peak dB
+slider33:0<0,30,0.1>Final Crest dB
+slider34:-144<-144,6,0.1>Final True Peak dB
+slider40:0<-15,15,0.1>Diff RMS Avg dB
+slider41:1<0,2,1{Off,On,Bypass}>Autogain RMS
+slider42:0<-15,15,0.1>Post Gain dB
+slider44:0<0,1,1{Off,On}>Autogain Peak
+slider45:0<0,1,1{Off,On}>Hold
+slider50:0<0,128000,1>PDC (Smp)
+slider51:0<0,1,1{Off,On}>TP Measurement
+slider60:0<0,1,1{Off,On}>Reset
+
+@init
+  // existing init…
+  MM.MemMgr_Init(0);
+  PDCM.PDC_Measure_Init(128000+1000,1,srate);
+  PDCM.PDC_Measure_Stop();
+  DEF_MAX_PDC=128000;
+  DelayLine.DL_Init(0,DEF_MAX_PDC,0);
+  AudioMeasure_Source.AM_Init(10,10000,0.75,srate);
+  AudioMeasure_Final.AM_Init(10,10000,0.75,srate);
+  ITU_Filter_HS.ITU_Filter_Init(1681.9744,1.2587,1,1.5848,0.7071,srate);
+  ITU_Filter_LC.ITU_Filter_Init(38.1354,0,0,1.0049,0.5003,srate);
+  ITU_Filter_HS_s.ITU_Filter_Init(1681.9744,1.2587,1,1.5848,0.7071,srate);
+  ITU_Filter_LC_s.ITU_Filter_Init(38.1354,0,0,1.0049,0.5003,srate);
+  LDGFX.LDGFX_Init();
+  count_down_ms=2000; PG_CountDown.CountDown_Init_ms(count_down_ms,srate);
+  SGain.SParam_Init_smp(20,0);
+  post_gain=1.0; postgain_limit=slider43;
+
+function Update()
+  // existing Update() definition…
+
+@slider
+  // existing @slider code…
+
+@block
+  // —— AUTO-LINKID (playback) ——  
+  chainpos=0; flags=0;  
+  trackidx=get_host_placement(chainpos,flags);  
+  slider1=(trackidx>=0)?(trackidx+1):0;  
+  linkid=slider1;
+
+  // original block logic:
+  PDCM.PDC_Measure_Block(linkid);
+  pre_gain_pos=linkid*(2*samplesblock+2);
+  globalmem_pos=pre_gain_pos+2;
+  // …rest unchanged…
+
+@sample
+  // existing @sample code…
+
+@gfx 500 300
+  // existing @gfx code…

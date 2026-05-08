@@ -1,0 +1,191 @@
+desc:Correlation Meter — Multiband Octave Graphic (JM mod, MS stable)
+
+options: gfx_hz=60
+//in_pin:left input
+//in_pin:right input
+
+slider1:weight_ms=600<0,10000,1>Average (ms)
+slider2:num_bands=10<3,12,1{3,4,5,6,7,8,9,10,11,12}>Bands (octave-ish)
+slider3:bar_gap_px=2<0,8,1>Bar Gap [px]
+slider4:vis_ms=120<5,1000,1>Visual Smooth (ms)
+slider5:gain_trim_db=0<-24,24,0.5>Analyzer Trim [dB]
+slider6:min_px=2<1,6,1>Min Bar Height [px]
+
+@init
+  pi=$pi; twopi=2*$pi;
+  function clamp(x,lo,hi)(x<lo?lo:x>hi?hi:x;);
+  function max(a,b)(a>b?a:b;);
+  function min(a,b)(a<b?a:b;);
+  function lerp(a,b,t)(a+(b-a)*t;);
+  function db2lin(db)(10^(db/20););
+  function w_from_ms(ms,sr)(ms<=0?1:1-exp(-1/(ms/1000*sr)););
+
+  // ~1e-20 without sci-notation quirks
+  EPS = exp(-20*log(10));
+
+  // RBJ bandpass -> globals g_b0..g_a2
+  function biquad_set_bp(f0,Q,sr) local(w0,alpha,c,a0)(
+    w0 = twopi*f0/sr;
+    alpha = sin(w0)/(2*Q);
+    c = cos(w0);
+    a0 = 1+alpha;
+    g_b0 =  Q*alpha/a0;
+    g_b1 =  0;
+    g_b2 = -Q*alpha/a0;
+    g_a1 = -2*c/a0;
+    g_a2 = (1-alpha)/a0;
+  );
+
+  // centers up to 12
+  bandC0=31.5; bandC1=63; bandC2=125; bandC3=250; bandC4=500;
+  bandC5=1000; bandC6=2000; bandC7=4000; bandC8=8000; bandC9=16000;
+  bandC10=20000; bandC11=24000;
+
+  function get_center(idx)(
+    idx==0?bandC0:
+    idx==1?bandC1:
+    idx==2?bandC2:
+    idx==3?bandC3:
+    idx==4?bandC4:
+    idx==5?bandC5:
+    idx==6?bandC6:
+    idx==7?bandC7:
+    idx==8?bandC8:
+    idx==9?bandC9:
+    idx==10?bandC10:bandC11;
+  );
+
+  maxBands=12; Q_oct=1.41421356237;
+
+  i=0;
+  loop(maxBands,
+    b0L[i]=b1L[i]=b2L[i]=a1L[i]=a2L[i]=0;
+    b0R[i]=b1R[i]=b2R[i]=a1R[i]=a2R[i]=0;
+    z1L[i]=z2L[i]=z1R[i]=z2R[i]=0;
+    eM2[i]=eS2[i]=0;
+    r_vis[i]=0;
+    i+=1;
+  );
+
+@gfx ;
+
+@slider
+  band_count=floor(num_bands); band_count>maxBands?band_count=maxBands;
+  w  = w_from_ms(weight_ms,srate);   // analysis smoother
+  wv = w_from_ms(vis_ms,srate);      // visual smoother
+  trim = db2lin(gain_trim_db);
+
+  i=0;
+  loop(band_count,
+    fc = get_center(i);
+    fc > srate*0.45 ? fc = srate*0.45;
+    biquad_set_bp(fc,Q_oct,srate);
+    b0L[i]=g_b0; b1L[i]=g_b1; b2L[i]=g_b2; a1L[i]=g_a1; a2L[i]=g_a2;
+    biquad_set_bp(fc,Q_oct,srate);
+    b0R[i]=g_b0; b1R[i]=g_b1; b2R[i]=g_b2; a1R[i]=g_a1; a2R[i]=g_a2;
+    i+=1;
+  );
+
+@sample
+  xL = spl0*trim; xR = spl1*trim;
+
+  i=0;
+  loop(band_count,
+    // biquad L
+    yL = b0L[i]*xL + z1L[i];
+    z1L[i] = b1L[i]*xL - a1L[i]*yL + z2L[i];
+    z2L[i] = b2L[i]*xL - a2L[i]*yL;
+
+    // biquad R
+    yR = b0R[i]*xR + z1R[i];
+    z1R[i] = b1R[i]*xR - a1R[i]*yR + z2R[i];
+    z2R[i] = b2R[i]*xR - a2R[i]*yR;
+
+    // Mid/Side
+    M = 0.5*(yL + yR);
+    S = 0.5*(yL - yR);
+
+    // running energies
+    eM2[i] += w*(M*M - eM2[i]);
+    eS2[i] += w*(S*S - eS2[i]);
+
+    num = eM2[i] - eS2[i];
+    den = eM2[i] + eS2[i];
+
+    // robust correlation (mono=+1, anti=−1, uncorrelated≈0)
+    r = (den < EPS) ? 0 : clamp(num/den, -1, 1);
+
+    // visual smoothing; decay to 0 when no energy
+    target = (den < EPS) ? 0 : r;
+    r_vis[i] += wv * (target - r_vis[i]);
+    i+=1;
+  );
+
+@gfx
+  // bg
+  gfx_set(0.06,0.06,0.07,1); gfx_rect(0,0,gfx_w,gfx_h);
+
+  midy = floor(gfx_h*0.5);
+  topy = floor(gfx_h*0.08);
+  boty = floor(gfx_h*0.92);
+
+  // frame
+  gfx_set(0.25,0.25,0.28,1); gfx_line(0,midy,gfx_w,midy);
+  gfx_set(0.18,0.18,0.20,1); gfx_rect(0,topy,gfx_w,boty-topy,0);
+
+  gap = bar_gap_px;
+  nb  = band_count<1 ? 1 : band_count;
+  barW= max(1, floor((gfx_w - (nb-1)*gap)/nb));
+  bh  = boty - topy;
+
+  // font
+  gfx_setfont(1,"Verdana",floor(max(9,gfx_h*0.06)));
+
+  // color: green at 0, yellow near +1, red near −1
+  function set_color_from_r(r) local(a)(
+    r = clamp(r,-1,1);
+    a = abs(r);
+    (r >= 0) ? ( gfx_set(a, 1, 0, 1); ) // 0→green, +1→yellow
+             : ( gfx_set(1, 1-a, 0, 1); ) // 0→green, −1→red
+  );
+
+  // bars with minimum height
+  i=0; x=0;
+  loop(nb, (
+    r = clamp(r_vis[i], -1, 1);
+    set_color_from_r(r);
+
+    h = floor(abs(r) * (bh*0.5));
+    h < min_px ? h = min_px;
+
+    (r >= 0) ? (
+      y0 = midy - h;
+      y1 = midy;
+    ) : (
+      y0 = midy;
+      y1 = midy + h;
+    );
+
+    gfx_rect(x, y0, barW, y1 - y0);
+
+    // outline
+    gfx_set(0,0,0,0.2); gfx_rect(x, topy, barW, bh, 0);
+
+    // label every 2nd band
+    (i%2==0) ? (
+      fc = get_center(i);
+      fc>=1000 ? sprintf(#tmp,"%dk",floor(0.5+fc/1000)) : sprintf(#tmp,"%d",floor(fc));
+      gfx_set(0.7,0.7,0.75,0.8);
+      tx = x + floor(barW*0.5) - 8; ty = boty + 2;
+      gfx_x=tx; gfx_y=ty; gfx_printf(#tmp);
+    );
+
+    x += barW + gap;
+    i+=1;
+  ));
+
+  // scale ticks
+  gfx_set(0.5,0.5,0.6,0.8);
+  gfx_x=2; gfx_y=topy-14; gfx_printf("+1");
+  gfx_x=2; gfx_y=midy-7;  gfx_printf("0");
+  gfx_x=2; gfx_y=boty+2;  gfx_printf("-1");

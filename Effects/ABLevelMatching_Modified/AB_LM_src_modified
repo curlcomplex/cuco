@@ -1,0 +1,52 @@
+// Copyright 2015, tb-software.com
+// Provides raw audio data to AB Master target plugin
+// by TBProAudio 2018 (www.tb-software.com)
+
+desc:AB Level Matching Source JSFX V3.3 (TBProAudio) — auto-linkID
+options:gmem=TBProAudio_AB_LM
+
+import memorymanager.jsfx-inc
+import tbproaudio_common.jsfx-inc
+
+slider1:0<0,127,1>LinkID
+
+@init
+  // PDC measurement init
+  PDCM.PDC_Measure_Init_Src(1);
+
+@slider
+  // allow manual override (will be overwritten by @block/@gfx)
+  linkid = slider1;
+
+@block
+  // —— Auto-assign LinkID every block ——  
+  chainpos = 0; flags = 0;
+  trackidx = get_host_placement(chainpos, flags);  
+  // master (–1)→0, else track N→N+1  
+  slider1 = (trackidx >= 0) ? (trackidx + 1) : 0;  
+  linkid  = slider1;
+
+  // —— PDC block processing ——  
+  PDCM.PDC_Measure_Block_Src(linkid);
+  pre_gain_pos = linkid * (2 * samplesblock + 2);
+  pos          = pre_gain_pos + 2;
+
+@sample
+  // store & apply  
+  gmem[pos]   = spl0;  
+  gmem[pos+1] = spl1;  
+  pos += 2;  
+  spl0 *= gmem[pre_gain_pos];  
+  spl1 *= gmem[pre_gain_pos];  
+  PDCM.PDC_Measure_Process_Src();
+
+@gfx 300 100
+  // —— Auto-assign LinkID on UI redraw ——  
+  chainpos = 0; flags = 0;
+  trackidx = get_host_placement(chainpos, flags);
+  slider1  = (trackidx >= 0) ? (trackidx + 1) : 0;
+  linkid   = slider1;
+
+  // Display LinkID  
+  gfx_x = 10; gfx_y = 10;  
+  gfx_drawstr(sprintf("LinkID: %d", linkid));

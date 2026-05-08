@@ -1,0 +1,424 @@
+// CUCO widgets — knob, horizontal bar slider, checkbox, stereo monitor.
+//
+// All widgets:
+//  - take their slider variable by reference (`slidervar*`)
+//  - use ui_automate() so writes post undo points and host automation
+//  - support shift-drag for fine, double-click for default, scroll for nudge
+//  - layout-driven: place them with ui_split_*/ui_pad/ui_push_rect first
+//
+// Retina-correct: all drawing uses ui_*_retina() coordinates and multiplies
+// magic-number pixel constants by ui_retina() so the widgets scale uniformly
+// under cuco_ui_begin(design_w, design_h).
+//
+// Convention: angle 0 = up (12 o'clock), positive = clockwise.
+// Knob arc spans 270°: -3π/4 (7:30) to +3π/4 (4:30).
+
+@init
+
+// --------------------------------------------------------------------
+// Math helpers
+// --------------------------------------------------------------------
+
+function cuco_clamp01(x)  ( max(0, min(1, x)); );
+function cuco_lerp(a, b, t) ( a + (b - a) * t; );
+
+function cuco_v2r(v, lo, hi, curve)  ( uix_slider_value_to_ratio(v, lo, hi, curve); );
+function cuco_r2v(r, lo, hi, curve)  ( uix_slider_ratio_to_value(r, lo, hi, curve); );
+
+// --------------------------------------------------------------------
+// Value formatting
+// --------------------------------------------------------------------
+
+function cuco_fmt_value(v, unit) local(s) (
+  abs(v) >= 1000 ? (
+    sprintf(#s, "%.1fk%s", v/1000, unit);
+  ) : abs(v) >= 100 ? (
+    sprintf(#s, "%.0f%s", v, unit);
+  ) : abs(v) >= 10 ? (
+    sprintf(#s, "%.1f%s", v, unit);
+  ) : (
+    sprintf(#s, "%.2f%s", v, unit);
+  );
+  #s;
+);
+
+// --------------------------------------------------------------------
+// Common interaction: returns the new ratio after handling drag/scroll.
+// --------------------------------------------------------------------
+
+function cuco_drag_ratio(cur_ratio) local(fine, dy, scroll) (
+  fine = (mouse_cap & 8) ? 0.2 : 1;          // shift = fine
+  ui_drag(0) ? (
+    dy = -ui_mouse_dy();
+    cur_ratio += dy * 0.005 * fine;
+  );
+  scroll = ui_scroll_y();
+  scroll ? (
+    cur_ratio += scroll * (fine / uix_scroll_scale);
+  );
+  cuco_clamp01(cur_ratio);
+);
+
+// --------------------------------------------------------------------
+// cuco_knob — radial knob.
+// --------------------------------------------------------------------
+
+function cuco_knob(slidervar*, lo, hi, default_val, curve, bipolar, label, unit)
+  local(retina, left, top, width, height,
+        r, cx, cy, ratio, new_ratio, new_val, a0, a1, av, ac, hover, drag_active,
+        text_strip)
+(
+  ratio = cuco_v2r(slidervar, lo, hi, curve);
+
+  retina = ui_retina();
+  left   = ui_left_retina();
+  top    = ui_top_retina();
+  width  = ui_width_retina();
+  height = ui_height_retina();
+
+  // Reserve 28 logical px for the label/value strip below the knob.
+  // (ui_split_bottom(28) below; 6 of those are clear space between the
+  // knob's bottom rim and the value text.)
+  text_strip = 28 * retina;
+
+  // Knob radius in physical pixels. Cap so wide cells don't bloat.
+  // The "−4*retina" trims twice the top inset (used in cy below) so the
+  // knob sits within (top + 4) … (top + height − text_strip) cleanly.
+  r  = min(min(width, height - text_strip - 4 * retina) * 0.5, 44 * retina);
+  cx = left + width * 0.5;
+  cy = top  + r + 4 * retina;
+
+  hover       = ui_hover();
+  drag_active = ui_drag(0);
+
+  // --- track ring
+  cuco_col_panel_hi();
+  gfx_a = 1;
+  gfx_circle(cx, cy, r,             1, 1);
+  cuco_col_panel();
+  gfx_circle(cx, cy, r - retina,    1, 1);
+
+  // --- dim sweep arc (full 270°)
+  a0 = -0.75 * $pi;
+  a1 =  0.75 * $pi;
+  cuco_col_track();
+  gfx_arc(cx, cy, r - 3 * retina, a0, a1, 1);
+  gfx_arc(cx, cy, r - 4 * retina, a0, a1, 1);
+
+  // --- active arc
+  hover || drag_active ? cuco_col_accent() : cuco_col_accent_dim();
+  bipolar ? (
+    av = (ratio - 0.5) * 1.5 * $pi;
+    av >= 0 ? (
+      gfx_arc(cx, cy, r - 3 * retina, 0, av, 1);
+      gfx_arc(cx, cy, r - 4 * retina, 0, av, 1);
+      gfx_arc(cx, cy, r - 5 * retina, 0, av, 1);
+    ) : (
+      gfx_arc(cx, cy, r - 3 * retina, av, 0, 1);
+      gfx_arc(cx, cy, r - 4 * retina, av, 0, 1);
+      gfx_arc(cx, cy, r - 5 * retina, av, 0, 1);
+    );
+    cuco_col_text_faint();
+    gfx_line(cx, cy - r + 2 * retina, cx, cy - r + 5 * retina, 1);
+  ) : (
+    av = a0 + ratio * (a1 - a0);
+    gfx_arc(cx, cy, r - 3 * retina, a0, av, 1);
+    gfx_arc(cx, cy, r - 4 * retina, a0, av, 1);
+    gfx_arc(cx, cy, r - 5 * retina, a0, av, 1);
+  );
+
+  // --- indicator line
+  ac = bipolar ? (ratio - 0.5) * 1.5 * $pi
+               : a0 + ratio * (a1 - a0);
+  hover || drag_active ? cuco_col_text() : cuco_col_text_dim();
+  gfx_line(
+    cx + sin(ac) * (r - 9 * retina), cy - cos(ac) * (r - 9 * retina),
+    cx + sin(ac) * (r - 2 * retina), cy - cos(ac) * (r - 2 * retina),
+    1
+  );
+
+  // --- label + value text (uses logical layout; ui_text auto-scales font)
+  ui_push();
+    ui_split_bottom(28);
+      ui_split_top(13);
+        cuco_font_value();
+        drag_active || hover ? cuco_col_text() : cuco_col_text_dim();
+        ui_align(0.5, 0);
+        ui_text(cuco_fmt_value(slidervar, unit));
+      ui_pop();
+      cuco_font_label();
+      cuco_col_text_faint();
+      ui_align(0.5, 0);
+      ui_text(label);
+    ui_pop();
+  ui_pop();
+
+  // --- interaction
+  new_ratio = cuco_drag_ratio(ratio);
+  new_ratio !== ratio ? (
+    new_val = cuco_r2v(new_ratio, lo, hi, curve);
+    ui_automate(slidervar, new_val);
+  );
+  ui_click(0) && ui_clickcount(0) == 2 ? (
+    ui_automate(slidervar, default_val);
+  );
+  ui_drag_up(0) ? uix_undo_point();
+);
+
+function cuco_knob(slidervar*, lo, hi, default_val, label, unit) (
+  cuco_knob(slidervar, lo, hi, default_val, 0, 0, label, unit);
+);
+
+function cuco_knob_log(slidervar*, lo, hi, default_val, label, unit) (
+  cuco_knob(slidervar, lo, hi, default_val, 2, 0, label, unit);
+);
+
+function cuco_knob_bipolar(slidervar*, lo, hi, default_val, label, unit) (
+  cuco_knob(slidervar, lo, hi, default_val, 0, 1, label, unit);
+);
+
+// --------------------------------------------------------------------
+// cuco_hbar — horizontal bar (also bipolar-aware).
+// --------------------------------------------------------------------
+
+function cuco_hbar(slidervar*, lo, hi, default_val, curve, bipolar, label, unit)
+  local(retina, left, top, width, height,
+        ratio, new_ratio, new_val, fillw, midx, pad)
+(
+  ratio = cuco_v2r(slidervar, lo, hi, curve);
+
+  retina = ui_retina();
+  left   = ui_left_retina();
+  top    = ui_top_retina();
+  width  = ui_width_retina();
+  height = ui_height_retina();
+  pad    = 6 * retina;
+
+  // bg
+  cuco_col_panel();
+  gfx_a = 1;
+  gfx_rect(left, top, width, height);
+
+  // fill
+  ui_hover() || ui_drag(0) ? cuco_col_accent() : cuco_col_accent_dim();
+  bipolar ? (
+    midx  = left + width * 0.5;
+    fillw = (ratio - 0.5) * width;
+    fillw >= 0 ? (
+      gfx_rect(midx, top, fillw, height);
+    ) : (
+      gfx_rect(midx + fillw, top, -fillw, height);
+    );
+    cuco_col_text_faint();
+    gfx_rect(midx, top, retina, height);
+  ) : (
+    fillw = ratio * width;
+    gfx_rect(left, top, fillw, height);
+  );
+
+  // text overlay (label left, value right) — logical coords for ui_text
+  ui_push();
+    cuco_font_label();
+    cuco_col_text();
+    ui_pad(6, 0);
+    ui_align(0, 0.5);
+    ui_text(label);
+    cuco_col_text();
+    ui_align(1, 0.5);
+    ui_text(cuco_fmt_value(slidervar, unit));
+  ui_pop();
+
+  // interaction
+  new_ratio = cuco_drag_ratio(ratio);
+  new_ratio !== ratio ? (
+    new_val = cuco_r2v(new_ratio, lo, hi, curve);
+    ui_automate(slidervar, new_val);
+  );
+  ui_click(0) && ui_clickcount(0) == 2 ? (
+    ui_automate(slidervar, default_val);
+  );
+  ui_drag_up(0) ? uix_undo_point();
+);
+
+function cuco_hbar(slidervar*, lo, hi, default_val, label, unit) (
+  cuco_hbar(slidervar, lo, hi, default_val, 0, 0, label, unit);
+);
+
+// --------------------------------------------------------------------
+// cuco_checkbox — small square toggle + label.
+// --------------------------------------------------------------------
+
+function cuco_checkbox(slidervar*, label)
+  local(retina, left, top, height,
+        box_size, box_x, box_y, on, hover, pad)
+(
+  retina = ui_retina();
+  left   = ui_left_retina();
+  top    = ui_top_retina();
+  height = ui_height_retina();
+
+  on    = slidervar >= 0.5;
+  hover = ui_hover() || ui_drag(0);
+  box_size = 12 * retina;
+  pad      = 4  * retina;
+  box_x = left + pad;
+  box_y = top + (height - box_size) * 0.5;
+
+  // box outline
+  hover ? cuco_col_accent() : cuco_col_track();
+  gfx_a = 1;
+  gfx_rect(box_x, box_y, box_size, box_size, 0);
+
+  // fill if on
+  on ? (
+    cuco_col_accent();
+    gfx_rect(box_x + 2 * retina, box_y + 2 * retina,
+             box_size - 4 * retina, box_size - 4 * retina, 1);
+  );
+
+  // label (logical pad + ui_text autoscaling font)
+  ui_push();
+    ui_padleft(20);                          // logical px; ui_pad scales
+    cuco_font_label();
+    on || hover ? cuco_col_text() : cuco_col_text_dim();
+    ui_align(0, 0.5);
+    ui_text(label);
+  ui_pop();
+
+  // click toggles
+  ui_click(0) ? (
+    ui_automate(slidervar, on ? 0 : 1);
+    uix_undo_point();
+  );
+);
+
+// --------------------------------------------------------------------
+// cuco_stereo_monitor — radial directionality scope (BOOM-style).
+// --------------------------------------------------------------------
+
+function cuco_monitor_draw_hist(hist_addr, n_bins, cx, cy, r_inner, r_outer,
+                                peak_max, color_r, color_g, color_b, alpha)
+  local(i, bin_v, bin_n, ang, frac, x1, y1, x2, y2)
+(
+  bin_n = max(1, peak_max);
+  i = 0;
+  loop(n_bins,
+    bin_v = hist_addr[i];
+    bin_v > 0 ? (
+      ang = -0.5 * $pi + (i + 0.5) / n_bins * $pi;
+      frac = min(1, bin_v / bin_n);
+      ui_color(color_r * 255, color_g * 255, color_b * 255, alpha * frac);
+      x1 = cx + sin(ang) * r_inner;
+      y1 = cy - cos(ang) * r_inner;
+      x2 = cx + sin(ang) * (r_inner + (r_outer - r_inner) * frac);
+      y2 = cy - cos(ang) * (r_inner + (r_outer - r_inner) * frac);
+      gfx_line(x1, y1, x2, y2, 1);
+    );
+    i += 1;
+  );
+);
+
+function cuco_stereo_monitor(in_hist_addr, out_hist_addr, n_bins,
+                             show_in*, show_out*, peak_max)
+  local(retina, left, top, width, height,
+        cx, cy, r_outer, r_inner, mx, my, hover_in, hover_out, btn_y,
+        btn_size, strip)
+(
+  retina = ui_retina();
+  left   = ui_left_retina();
+  top    = ui_top_retina();
+  width  = ui_width_retina();
+  height = ui_height_retina();
+
+  // Filled background panel.
+  cuco_col_panel();
+  gfx_a = 1;
+  gfx_rect(left, top, width, height);
+
+  // Reserve a strip at the bottom for the IN/OUT toggle row.
+  strip = 22 * retina;
+  r_outer = min(width * 0.45, (height - strip) * 0.92);
+  r_inner = r_outer * 0.18;
+  cx = left + width * 0.5;
+  cy = top  + height - strip;             // C lives just above the toggles
+
+  // Fan boundary arc.
+  cuco_col_track();
+  gfx_a = 0.7;
+  gfx_arc(cx, cy, r_outer,           -0.5 * $pi, 0.5 * $pi, 1);
+  gfx_arc(cx, cy, r_outer - retina,  -0.5 * $pi, 0.5 * $pi, 1);
+
+  // L / R rails and vertical center.
+  cuco_col_text_faint();
+  gfx_a = 0.6;
+  gfx_line(cx, cy, cx + sin(-0.5 * $pi) * r_outer,
+                   cy - cos(-0.5 * $pi) * r_outer, 1);
+  gfx_line(cx, cy, cx + sin( 0.5 * $pi) * r_outer,
+                   cy - cos( 0.5 * $pi) * r_outer, 1);
+  gfx_line(cx, cy, cx, cy - r_outer, 1);
+
+  // L / C / R labels (small — uses cuco_font_micro which is in logical
+  // px, so it scales with ui_retina automatically).
+  cuco_font_micro();
+  cuco_col_text_dim();
+  gfx_x = cx - r_outer + 4 * retina;
+  gfx_y = cy - r_outer * 0.5;
+  gfx_drawstr("L");
+  gfx_x = cx + r_outer - 12 * retina;
+  gfx_y = cy - r_outer * 0.5;
+  gfx_drawstr("R");
+  gfx_x = cx - 4 * retina;
+  gfx_y = cy + 4 * retina;
+  gfx_drawstr("C");
+
+  // IN cloud (dim, behind).
+  show_in >= 0.5 ? (
+    cuco_monitor_draw_hist(in_hist_addr, n_bins, cx, cy, r_inner, r_outer,
+                           peak_max, 0.55, 0.6, 0.65, 0.5);
+  );
+
+  // OUT cloud (accent, front).
+  show_out >= 0.5 ? (
+    cuco_monitor_draw_hist(out_hist_addr, n_bins, cx, cy, r_inner, r_outer,
+                           peak_max, 0.42, 0.77, 0.86, 0.95);
+  );
+
+  // IN / OUT toggle buttons (in the reserved bottom strip).
+  btn_size = 10 * retina;
+  btn_y = top + height - btn_size - 4 * retina;
+  mx = uix_mouse_x * retina;             // physical pixels for hit-test
+  my = uix_mouse_y * retina;
+
+  hover_in = (mx >= left + 6 * retina && mx < left + 40 * retina &&
+              my >= btn_y && my < btn_y + btn_size + 2 * retina);
+  show_in >= 0.5 ? cuco_col_accent() : cuco_col_text_faint();
+  gfx_a = 1;
+  gfx_circle(left + 12 * retina, btn_y + btn_size * 0.5, 3 * retina, 1, 1);
+  cuco_font_micro();
+  hover_in ? cuco_col_text() : (show_in >= 0.5 ? cuco_col_text() : cuco_col_text_dim());
+  gfx_x = left + 20 * retina;
+  gfx_y = btn_y + 1 * retina;
+  gfx_drawstr("IN");
+
+  hover_out = (mx >= left + width - 40 * retina && mx < left + width - 6 * retina &&
+               my >= btn_y && my < btn_y + btn_size + 2 * retina);
+  show_out >= 0.5 ? cuco_col_accent() : cuco_col_text_faint();
+  gfx_a = 1;
+  gfx_circle(left + width - 30 * retina, btn_y + btn_size * 0.5, 3 * retina, 1, 1);
+  hover_out ? cuco_col_text() : (show_out >= 0.5 ? cuco_col_text() : cuco_col_text_dim());
+  gfx_x = left + width - 22 * retina;
+  gfx_y = btn_y + 1 * retina;
+  gfx_drawstr("OUT");
+
+  // Click handling.
+  hover_in && uix_click1 && !uix_mouseblocked ? (
+    ui_automate(show_in, show_in >= 0.5 ? 0 : 1);
+    uix_undo_point();
+    uix_click_block();
+  );
+  hover_out && uix_click1 && !uix_mouseblocked ? (
+    ui_automate(show_out, show_out >= 0.5 ? 0 : 1);
+    uix_undo_point();
+    uix_click_block();
+  );
+);

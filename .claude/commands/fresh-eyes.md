@@ -19,8 +19,8 @@ Run, in parallel:
 - `git status --short`
 - `git log --oneline -10`
 - `git diff --stat HEAD`
-- `node scripts/ig/cuco_scripts_ig.cjs --stats`
-- `node scripts/ig/cuco_scripts_ig.cjs --ready`
+- `node tools/ig/cuco_scripts_ig.cjs --stats`
+- `node tools/ig/cuco_scripts_ig.cjs --ready`
 - `ls .planning/handovers/ | tail -3`
 
 Read whatever the snapshot suggests is load-bearing. Skim the newest handover.

@@ -1,0 +1,510 @@
+desc:CUCO ReCenter (Stage 4.0 — Simple) — Auto-Center (Single / Fixed 4-Band), Width, Mono Bass, Speed, Target, Output
+// Simple, production-friendly UI that mirrors BOOM ReCenter’s feel.
+// • Center (0–200%) — overall steering strength + smart per-band weighting
+// • Speed (0..1) — continuous timing feel (response, window, hysteresis)
+// • Width (0–200%) — post-steer M/S width
+// • Mono Bass Fc (Hz, 0=Off) — Side HP LR4, phase-safe (prevents low-end nulls)
+// • Mode — Single band or 4 fixed, phase-aligned bands @ 150/1200/5500 Hz
+// • Target Angle — aim point (0° = center)
+// • Freeze — hold current correction
+// • Output (dB) — trim
+//
+// Under the hood (fixed, sensible):
+//   Pan-law = −3 dB@center, Polarity Normal, Assist ON (threshold adapts to Center),
+//   Analysis floor −60 dBFS, Lookahead OFF, Meters ~30 Hz refresh, ~250 ms smoothing.
+
+//251002 01:12 - changes to make:
+//1. Width is not gain compensated
+//2. Target angle is not working correctly or at all
+//3. overall output is 3db too quiet
+//4. freeze doesn't seem to do anything, what should it do actually?
+//5. Meter view should have less information, only pertinent info
+//6. Multiband azimuths should be sliders like L R and Correlation
+//7. what is the lookahead value set to in simple mode?
+//8. center value seems to wrap at high values (180%+)
+//9. shouldn't hard panning gain compensation increase the volume on the side when panning rather than reducing mid volume?
+
+//------------------------------------------------------------
+// Sliders (SIMPLE UI ONLY)
+//------------------------------------------------------------
+slider1:100<0,200,1>Center (%)
+slider2:0.50<0,1,0.01>Speed (0..1)
+slider3:100<0,200,1>Width (%)
+slider4:120<0,200,1>Mono Bass Fc (Hz)   // 0 => Off
+slider5:1<0,1,1{Single,Multi(4)}>Mode
+slider6:0<-45,45,0.1>Target Angle (deg) // 0° = "Center"
+slider7:0<0,1,1{Run,Freeze}>Freeze
+slider8:0<-12,12,0.1>Output (dB)
+
+//------------------------------------------------------------
+// Globals / constants
+//------------------------------------------------------------
+@init
+inv_sqrt2 = 0.7071067811865475;
+tiny = exp(log(10)*(-24));
+eps  = exp(log(10)*(-12));
+pi = $pi;
+
+// --- fixed behaviour ---
+panlaw_center_gain = 10^(-3/20); // −3 dB @ center
+polarity_invert = 0;             // normal
+ana_floor_dB = -60;              // analysis floor
+lookahead_samps = 0;             // zero-latency
+pdc_delay = 0;
+
+// meters
+meter_refresh_hz = 30;           // UI cadence
+tau_meter_s = 0.25;              // ~250 ms smoothing
+
+// band split freqs for Multi(4)
+XO1 = 150; XO2 = 1200; XO3 = 5500;
+Q_bw = 0.7071067811865475;
+
+// state
+g_lin = 1;
+k_width = 1;
+
+auto_on = 1;     // always on in Simple
+freeze_on = 0;
+
+alpha_sm_B1 = alpha_sm_B2 = alpha_sm_B3 = alpha_sm_B4 = 0;
+alpha_show_deg = 0;
+
+// assist (ILD fallback)
+assist_on = 1;
+assist_thr_db = 9; // will be adapted by Center macro
+
+// display/conf
+conf_raw_disp = 0;
+
+// meters accum (pre-lookahead)
+accOutL2 = accOutR2 = accOutLR = 0;
+meter_rmsL = meter_rmsR = -120;
+meter_rho = 0;
+y_rmsL = y_rmsR = -120;
+y_rho  = 0;
+
+// analysis accumulators
+accInL2=accInR2=accInLR=0;
+accB1L2=accB1R2=accB1LR=0;
+accB2L2=accB2R2=accB2LR=0;
+accB3L2=accB3R2=accB3LR=0;
+accB4L2=accB4R2=accB4LR=0;
+
+disp_az_deg=0;
+disp_az_B1_deg=disp_az_B2_deg=disp_az_B3_deg=disp_az_B4_deg=0;
+
+// cadence
+meter_samples_per_refresh = max(1, floor(srate / meter_refresh_hz));
+meter_count = 0;
+
+// defaults for auto timings (will be set by Speed macro)
+ana_samples = max(32, floor(srate*0.03)); // ~30 ms initial
+a_meters = 1 - exp(-(meter_samples_per_refresh/srate)/tau_meter_s);
+
+// Mono-Below (Side HP LR4) coeffs/states (set in @slider)
+mb_on = 1;
+mb_fc = 120;
+mb_b0HP=mb_b1HP=mb_b2HP=mb_a1HP=mb_a2HP=0;
+s_mb_hp1_z1=s_mb_hp1_z2=s_mb_hp2_z1=s_mb_hp2_z2=0;
+
+// Fixed XO coeffs (LR4) for 150/1200/5500 (set in @slider)
+x1_b0LP=x1_b1LP=x1_b2LP=x1_a1LP=x1_a2LP=0;
+x1_b0HP=x1_b1HP=x1_b2HP=x1_a1HP=x1_a2HP=0;
+x2_b0LP=x2_b1LP=x2_b2LP=x2_a1LP=x2_a2LP=0;
+x2_b0HP=x2_b1HP=x2_b2HP=x2_a1HP=x2_a2HP=0;
+x3_b0LP=x3_b1LP=x3_b2LP=x3_a1LP=x3_a2LP=0;
+x3_b0HP=x3_b1HP=x3_b2HP=x3_a1HP=x3_a2HP=0;
+
+// XO states (two cascades each per filter)
+m1_lp1_z1=m1_lp1_z2=m1_lp2_z1=m1_lp2_z2=0;
+s1_lp1_z1=s1_lp1_z2=s1_lp2_z1=s1_lp2_z2=0;
+m1_hp1_z1=m1_hp1_z2=m1_hp2_z1=m1_hp2_z2=0;
+s1_hp1_z1=s1_hp1_z2=s1_hp2_z1=s1_hp2_z2=0;
+
+m2_lp1_z1=m2_lp1_z2=m2_lp2_z1=m2_lp2_z2=0;
+s2_lp1_z1=s2_lp1_z2=s2_lp2_z1=s2_lp2_z2=0;
+m2_hp1_z1=m2_hp1_z2=m2_hp2_z1=m2_hp2_z2=0;
+s2_hp1_z1=s2_hp1_z2=s2_hp2_z1=s2_hp2_z2=0;
+
+m3_lp1_z1=m3_lp1_z2=m3_lp2_z1=m3_lp2_z2=0;
+s3_lp1_z1=s3_lp1_z2=s3_lp2_z1=s3_lp2_z2=0;
+m3_hp1_z1=m3_hp1_z2=m3_hp2_z1=m3_hp2_z2=0;
+s3_hp1_z1=s3_hp1_z2=s3_hp2_z1=s3_hp2_z2=0;
+
+// analysis/auto response (set by Speed macro)
+k_intensity = 1;
+a_resp_sample = 1 - exp(-1/(srate*0.15)); // placeholder, replaced in @slider
+
+// weights (driven by Center macro)
+wB1=wB2=wB3=wB4=1;
+
+//------------------------------------------------------------
+// Utility
+//------------------------------------------------------------
+function db_to_norm(db) ( db = (db < -90) ? -90 : ((db > 0) ? 0 : db); (db + 90) / 90; );
+function clamp01(x) ( min(1, max(0, x)); );
+function limit(x, lo, hi) ( x < lo ? lo : (x > hi ? hi : x); );
+function pow01(x,p) (
+  // safe, monotonic 0..1 -> 0..1 with exponent p
+  x = max(0, x);
+  exp(p * log(x + eps));
+);
+
+// Per-band analysis: writes g_az (rad), g_cg [0..1], g_cr [0..1]
+function band_analysis_set(EL, ER, C) (
+  az = 0.5 * atan2(ER - EL, 2*C + eps);
+  meanPow = (EL + ER) / max(1, ana_samples) * 0.5;
+  energy_dB = (meanPow > eps) ? (10*log(meanPow)/log(10)) : -120;
+
+  denom_in = sqrt(max(eps, EL*ER));
+  rho_in = (denom_in > eps) ? (C/denom_in) : 0;
+  rho_abs = abs(rho_in);
+
+  // ILD path (per-window mean power)
+  ELp = max(eps, EL / max(1, ana_samples));
+  ERp = max(eps, ER / max(1, ana_samples));
+  ild_db = abs(10*log(ERp/ELp)/log(10));
+
+  conf_rho = rho_abs * clamp01((energy_dB - ana_floor_dB)/max(1,20));
+  ild_gain = 0; assist_on ? ( ild_over = max(0, ild_db - assist_thr_db); ild_gain = min(1, ild_over/12); );
+  conf_raw = max(conf_rho, ild_gain);
+
+  // hysteresis around fixed threshold 0.35.. (adjusted via Speed below)
+  lo = max(0, conf_thresh - conf_hyst);
+  hi = min(1, conf_thresh + conf_hyst);
+  conf_gain = (conf_raw <= lo) ? 0
+            : (conf_raw >= hi) ? 1
+            : (conf_raw - lo)/max(eps,(hi-lo));
+
+  g_az = az; g_cg = conf_gain; g_cr = conf_raw;
+);
+
+//------------------------------------------------------------
+// Sliders → Macros → Internals
+//------------------------------------------------------------
+@slider
+// Read simple UI
+center_pct = slider1;               // 0..200
+speed_k    = clamp01(slider2);      // 0..1
+width_pct  = slider3;               // 0..200
+mono_fc    = slider4|0;             // 0..200 Hz
+multi_on   = (slider5|0);           // 0/1
+target_ang = (slider6 * $pi/180);   // radians
+freeze_on  = (slider7|0);
+g_lin      = 10^(slider8/20);
+
+// --- Center macro: intensity + per-band weighting + assist threshold ---
+k_intensity = min(2, max(0, center_pct*0.01));
+w_sum = 0.7 + 1.0 + 1.0 + 0.9;
+w_scale = (w_sum > 0) ? (4.0 / w_sum) : 1;
+wB1 = 0.7 * w_scale * min(1, k_intensity);
+wB2 = 1.0 * w_scale * min(1, k_intensity);
+wB3 = 1.0 * w_scale * min(1, k_intensity);
+wB4 = 0.9 * w_scale * min(1, k_intensity);
+
+// Assist always ON; threshold eases with Center (12 dB → 6 dB)
+assist_on = 1;
+assist_thr_db = 12 - 6 * clamp01(k_intensity*0.5);
+
+// --- Speed macro: response, window, hysteresis (continuous curves) ---
+auto_resp_ms = 60 + 290 * pow01(speed_k, 1.2);  // ~60..350 ms
+ana_win_ms   = 12 +  48 * pow01(speed_k, 0.8);  // ~12..60  ms
+conf_thresh  = 0.35;                             // fixed center
+conf_hyst    = 0.08 + 0.14*speed_k;              // 0.08..0.22
+
+tau_a = max(0.001, auto_resp_ms * 0.001);
+a_resp_sample = 1 - exp(-1/(srate*tau_a));
+ana_samples   = max(32, floor(srate * (ana_win_ms * 0.001)));
+
+meter_samples_per_refresh = max(1, floor(srate / meter_refresh_hz));
+a_meters = 1 - exp(-(meter_samples_per_refresh/srate)/tau_meter_s);
+
+// --- Width ---
+k_width = width_pct * 0.01;
+
+// --- Mono-Below (Side HP LR4) ---
+mb_on = (mono_fc > 0);
+mb_fc = mono_fc;
+mb_on ? (
+  w0 = 2*$pi*mb_fc/srate; cw = cos(w0); sw = sin(w0); alpha = sw/(2*Q_bw); a0 = 1+alpha;
+  mb_b0HP=(1+cw)/2/a0; mb_b1HP=-(1+cw)/a0; mb_b2HP=(1+cw)/2/a0; mb_a1HP=-2*cw/a0; mb_a2HP=(1-alpha)/a0;
+);
+
+// --- Fixed LR4 XOs (150 / 1200 / 5500) ---
+w0 = 2*$pi*XO1/srate; cw = cos(w0); sw = sin(w0); alpha = sw/(2*Q_bw); a0 = 1+alpha;
+x1_b0LP=(1-cw)/2/a0; x1_b1LP=(1-cw)/a0; x1_b2LP=(1-cw)/2/a0; x1_a1LP=-2*cw/a0; x1_a2LP=(1-alpha)/a0;
+x1_b0HP=(1+cw)/2/a0; x1_b1HP=-(1+cw)/a0; x1_b2HP=(1+cw)/2/a0; x1_a1HP=-2*cw/a0; x1_a2HP=(1-alpha)/a0;
+
+w0 = 2*$pi*XO2/srate; cw = cos(w0); sw = sin(w0); alpha = sw/(2*Q_bw); a0 = 1+alpha;
+x2_b0LP=(1-cw)/2/a0; x2_b1LP=(1-cw)/a0; x2_b2LP=(1-cw)/2/a0; x2_a1LP=-2*cw/a0; x2_a2LP=(1-alpha)/a0;
+x2_b0HP=(1+cw)/2/a0; x2_b1HP=-(1+cw)/a0; x2_b2HP=(1+cw)/2/a0; x2_a1HP=-2*cw/a0; x2_a2HP=(1-alpha)/a0;
+
+w0 = 2*$pi*XO3/srate; cw = cos(w0); sw = sin(w0); alpha = sw/(2*Q_bw); a0 = 1+alpha;
+x3_b0LP=(1-cw)/2/a0; x3_b1LP=(1-cw)/a0; x3_b2LP=(1-cw)/2/a0; x3_a1LP=-2*cw/a0; x3_a2LP=(1-alpha)/a0;
+x3_b0HP=(1+cw)/2/a0; x3_b1HP=-(1+cw)/a0; x3_b2HP=(1+cw)/2/a0; x3_a1HP=-2*cw/a0; x3_a2HP=(1-alpha)/a0;
+
+//------------------------------------------------------------
+// Audio — per-sample
+//------------------------------------------------------------
+@sample
+// denormal guard
+spl0 += tiny; spl0 -= tiny; spl1 += tiny; spl1 -= tiny;
+
+// INPUT decode (Simple UI assumes normal L/R input)
+inL = spl0; inR = spl1;
+
+// Mid/Side
+M = (inL + inR)*inv_sqrt2;
+S = (inL - inR)*inv_sqrt2;
+
+// --- Split (Multi) or Single accumulate for analysis ---
+multi_on ? (
+  // XO1 @ 150 Hz → B1 + Rest1
+  y = x1_b0LP*M + m1_lp1_z1; m1_lp1_z1 = x1_b1LP*M - x1_a1LP*y + m1_lp1_z2; m1_lp1_z2 = x1_b2LP*M - x1_a2LP*y; m1_lp=y;
+  y = x1_b0LP*m1_lp + m1_lp2_z1; m1_lp2_z1 = x1_b1LP*m1_lp - x1_a1LP*y + m1_lp2_z2; m1_lp2_z2 = x1_b2LP*m1_lp - x1_a2LP*y; M_B1=y;
+
+  y = x1_b0LP*S + s1_lp1_z1; s1_lp1_z1 = x1_b1LP*S - x1_a1LP*y + s1_lp1_z2; s1_lp1_z2 = x1_b2LP*S - x1_a2LP*y; s1_lp=y;
+  y = x1_b0LP*s1_lp + s1_lp2_z1; s1_lp2_z1 = x1_b1LP*s1_lp - x1_a1LP*y + s1_lp2_z2; s1_lp2_z2 = x1_b2LP*s1_lp - x1_a2LP*y; S_B1=y;
+
+  y = x1_b0HP*M + m1_hp1_z1; m1_hp1_z1 = x1_b1HP*M - x1_a1HP*y + m1_hp1_z2; m1_hp1_z2 = x1_b2HP*M - x1_a2HP*y; m1_hp=y;
+  y = x1_b0HP*m1_hp + m1_hp2_z1; m1_hp2_z1 = x1_b1HP*m1_hp - x1_a1HP*y + m1_hp2_z2; m1_hp2_z2 = x1_b2HP*m1_hp - x1_a2HP*y; M_rest1=y;
+
+  y = x1_b0HP*S + s1_hp1_z1; s1_hp1_z1 = x1_b1HP*S - x1_a1HP*y + s1_hp1_z2; s1_hp1_z2 = x1_b2HP*S - x1_a2HP*y; s1_hp=y;
+  y = x1_b0HP*s1_hp + s1_hp2_z1; s1_hp2_z1 = x1_b1HP*s1_hp - x1_a1HP*y + s1_hp2_z2; s1_hp2_z2 = x1_b2HP*s1_hp - x1_a2HP*y; S_rest1=y;
+
+  // XO2 @ 1200 Hz on Rest1 → B2 + Rest2
+  y = x2_b0LP*M_rest1 + m2_lp1_z1; m2_lp1_z1 = x2_b1LP*M_rest1 - x2_a1LP*y + m2_lp1_z2; m2_lp1_z2 = x2_b2LP*M_rest1 - x2_a2LP*y; m2_lp=y;
+  y = x2_b0LP*m2_lp + m2_lp2_z1; m2_lp2_z1 = x2_b1LP*m2_lp - x2_a1LP*y + m2_lp2_z2; m2_lp2_z2 = x2_b2LP*m2_lp - x2_a2LP*y; M_B2=y;
+
+  y = x2_b0LP*S_rest1 + s2_lp1_z1; s2_lp1_z1 = x2_b1LP*S_rest1 - x2_a1LP*y + s2_lp1_z2; s2_lp1_z2 = x2_b2LP*S_rest1 - x2_a2LP*y; s2_lp=y;
+  y = x2_b0LP*s2_lp + s2_lp2_z1; s2_lp2_z1 = x2_b1LP*s2_lp - x2_a1LP*y + s2_lp2_z2; s2_lp2_z2 = x2_b2LP*s2_lp - x2_a2LP*y; S_B2=y;
+
+  y = x2_b0HP*M_rest1 + m2_hp1_z1; m2_hp1_z1 = x2_b1HP*M_rest1 - x2_a1HP*y + m2_hp1_z2; m2_hp1_z2 = x2_b2HP*M_rest1 - x2_a2HP*y; m2_hp=y;
+  y = x2_b0HP*m2_hp + m2_hp2_z1; m2_hp2_z1 = x2_b1HP*m2_hp - x2_a1HP*y + m2_hp2_z2; m2_hp2_z2 = x2_b2HP*m2_hp - x2_a2HP*y; M_rest2=y;
+
+  y = x2_b0HP*S_rest1 + s2_hp1_z1; s2_hp1_z1 = x2_b1HP*S_rest1 - x2_a1HP*y + s2_hp1_z2; s2_hp1_z2 = x2_b2HP*S_rest1 - x2_a2HP*y; s2_hp=y;
+  y = x2_b0HP*s2_hp + s2_hp2_z1; s2_hp2_z1 = x2_b1HP*s2_hp - x2_a1HP*y + s2_hp2_z2; s2_hp2_z2 = x2_b2HP*s2_hp - x2_a2HP*y; S_rest2=y;
+
+  // XO3 @ 5500 Hz on Rest2 → B3 + B4
+  y = x3_b0LP*M_rest2 + m3_lp1_z1; m3_lp1_z1 = x3_b1LP*M_rest2 - x3_a1LP*y + m3_lp1_z2; m3_lp1_z2 = x3_b2LP*M_rest2 - x3_a2LP*y; m3_lp=y;
+  y = x3_b0LP*m3_lp + m3_lp2_z1; m3_lp2_z1 = x3_b1LP*m3_lp - x3_a1LP*y + m3_lp2_z2; m3_lp2_z2 = x3_b2LP*m3_lp - x3_a2LP*y; M_B3=y;
+
+  y = x3_b0LP*S_rest2 + s3_lp1_z1; s3_lp1_z1 = x3_b1LP*S_rest2 - x3_a1LP*y + s3_lp1_z2; s3_lp1_z2 = x3_b2LP*S_rest2 - x3_a2LP*y; s3_lp=y;
+  y = x3_b0LP*s3_lp + s3_lp2_z1; s3_lp2_z1 = x3_b1LP*s3_lp - x3_a1LP*y + s3_lp2_z2; s3_lp2_z2 = x3_b2LP*s3_lp - x3_a2LP*y; S_B3=y;
+
+  y = x3_b0HP*M_rest2 + m3_hp1_z1; m3_hp1_z1 = x3_b1HP*M_rest2 - x3_a1HP*y + m3_hp1_z2; m3_hp1_z2 = x3_b2HP*M_rest2 - x3_a2HP*y; m3_hp=y;
+  y = x3_b0HP*m3_hp + m3_hp2_z1; m3_hp2_z1 = x3_b1HP*m3_hp - x3_a1HP*y + m3_hp2_z2; m3_hp2_z2 = x3_b2HP*m3_hp - x3_a2HP*y; M_B4=y;
+
+  y = x3_b0HP*S_rest2 + s3_hp1_z1; s3_hp1_z1 = x3_b1HP*S_rest2 - x3_a1HP*y + s3_hp1_z2; s3_hp1_z2 = x3_b2HP*S_rest2 - x3_a2HP*y; s3_hp=y;
+  y = x3_b0HP*s3_hp + s3_hp2_z1; s3_hp2_z1 = x3_b1HP*s3_hp - x3_a1HP*y + s3_hp2_z2; s3_hp2_z2 = x3_b2HP*s3_hp - x3_a2HP*y; S_B4=y;
+
+  // L/R per band
+  L_B1=(M_B1+S_B1)*inv_sqrt2; R_B1=(M_B1-S_B1)*inv_sqrt2;
+  L_B2=(M_B2+S_B2)*inv_sqrt2; R_B2=(M_B2-S_B2)*inv_sqrt2;
+  L_B3=(M_B3+S_B3)*inv_sqrt2; R_B3=(M_B3-S_B3)*inv_sqrt2;
+  L_B4=(M_B4+S_B4)*inv_sqrt2; R_B4=(M_B4-S_B4)*inv_sqrt2;
+
+  // accumulate analysis
+  accB1L2+=L_B1*L_B1; accB1R2+=R_B1*R_B1; accB1LR+=L_B1*R_B1;
+  accB2L2+=L_B2*L_B2; accB2R2+=R_B2*R_B2; accB2LR+=L_B2*R_B2;
+  accB3L2+=L_B3*L_B3; accB3R2+=R_B3*R_B3; accB3LR+=L_B3*R_B3;
+  accB4L2+=L_B4*L_B4; accB4R2+=R_B4*R_B4; accB4LR+=L_B4*R_B4;
+) :
+(
+  // Single-band accumulate
+  inL2 = inL*inL; inR2 = inR*inR;
+  accInL2 += inL2; accInR2 += inR2; accInLR += inL*inR;
+);
+
+ana_count += 1;
+
+// --- Per-window analysis → targets ---
+ana_count >= ana_samples ?
+(
+  multi_on ? (
+    band_analysis_set(accB1L2,accB1R2,accB1LR); _az1=g_az; _cg1=g_cg; _cr1=g_cr;
+    band_analysis_set(accB2L2,accB2R2,accB2LR); _az2=g_az; _cg2=g_cg; _cr2=g_cr;
+    band_analysis_set(accB3L2,accB3R2,accB3LR); _az3=g_az; _cg3=g_cg; _cr3=g_cr;
+    band_analysis_set(accB4L2,accB4R2,accB4LR); _az4=g_az; _cg4=g_cg; _cr4=g_cr;
+
+    disp_az_B1_deg=_az1*180/$pi; disp_az_B2_deg=_az2*180/$pi;
+    disp_az_B3_deg=_az3*180/$pi; disp_az_B4_deg=_az4*180/$pi;
+    conf_raw_disp = max(max(_cr1,_cr2), max(_cr3,_cr4));
+
+    alpha_tgt_B1 = -( k_intensity * wB1 * _cg1 * (_az1 - target_ang) );
+    alpha_tgt_B2 = -( k_intensity * wB2 * _cg2 * (_az2 - target_ang) );
+    alpha_tgt_B3 = -( k_intensity * wB3 * _cg3 * (_az3 - target_ang) );
+    alpha_tgt_B4 = -( k_intensity * wB4 * _cg4 * (_az4 - target_ang) );
+  ) :
+  (
+    band_analysis_set(accInL2,accInR2,accInLR); _az=g_az; _cg=g_cg; _cr=g_cr;
+    disp_az_deg = _az*180/$pi; conf_raw_disp=_cr;
+    alpha_tgt_B1 = -( k_intensity * _cg * (_az - target_ang) );
+  );
+
+  // Range clamp (±25° default vibe)
+  max_range = (25 * $pi/180);
+  alpha_tgt_B1 = limit(alpha_tgt_B1, -max_range, max_range);
+  multi_on ? (
+    alpha_tgt_B2 = limit(alpha_tgt_B2, -max_range, max_range);
+    alpha_tgt_B3 = limit(alpha_tgt_B3, -max_range, max_range);
+    alpha_tgt_B4 = limit(alpha_tgt_B4, -max_range, max_range);
+  );
+
+  // reset Accums
+  accInL2=accInR2=accInLR=0;
+  accB1L2=accB1R2=accB1LR=0;
+  accB2L2=accB2R2=accB2LR=0;
+  accB3L2=accB3R2=accB3LR=0;
+  accB4L2=accB4R2=accB4LR=0;
+
+  ana_count = 0;
+);
+
+// --- Smooth or Freeze ---
+auto_on ? (
+  freeze_on ? (
+    alpha_sm_B1+=0; alpha_sm_B2+=0; alpha_sm_B3+=0; alpha_sm_B4+=0;
+  ) : (
+    alpha_sm_B1 += a_resp_sample * (alpha_tgt_B1 - alpha_sm_B1);
+    multi_on ? (
+      alpha_sm_B2 += a_resp_sample * (alpha_tgt_B2 - alpha_sm_B2);
+      alpha_sm_B3 += a_resp_sample * (alpha_tgt_B3 - alpha_sm_B3);
+      alpha_sm_B4 += a_resp_sample * (alpha_tgt_B4 - alpha_sm_B4);
+    );
+  );
+) : ( alpha_sm_B1=alpha_sm_B2=alpha_sm_B3=alpha_sm_B4=0; );
+
+// --- Apply steering (manual base = 0° in Simple) ---
+base = 0;
+
+multi_on ? (
+  cs1 = cos(base + alpha_sm_B1); sn1 = sin(base + alpha_sm_B1);
+  cs2 = cos(base + alpha_sm_B2); sn2 = sin(base + alpha_sm_B2);
+  cs3 = cos(base + alpha_sm_B3); sn3 = sin(base + alpha_sm_B3);
+  cs4 = cos(base + alpha_sm_B4); sn4 = sin(base + alpha_sm_B4);
+
+  L_B1=(M_B1+S_B1)*inv_sqrt2; R_B1=(M_B1-S_B1)*inv_sqrt2;
+  L_B2=(M_B2+S_B2)*inv_sqrt2; R_B2=(M_B2-S_B2)*inv_sqrt2;
+  L_B3=(M_B3+S_B3)*inv_sqrt2; R_B3=(M_B3-S_B3)*inv_sqrt2;
+  L_B4=(M_B4+S_B4)*inv_sqrt2; R_B4=(M_B4-S_B4)*inv_sqrt2;
+
+  rotB1L =  L_B1*cs1 - R_B1*sn1; rotB1R =  L_B1*sn1 + R_B1*cs1;
+  rotB2L =  L_B2*cs2 - R_B2*sn2; rotB2R =  L_B2*sn2 + R_B2*cs2;
+  rotB3L =  L_B3*cs3 - R_B3*sn3; rotB3R =  L_B3*sn3 + R_B3*cs3;
+  rotB4L =  L_B4*cs4 - R_B4*sn4; rotB4R =  L_B4*sn4 + R_B4*cs4;
+
+  L_steered = rotB1L + rotB2L + rotB3L + rotB4L;
+  R_steered = rotB1R + rotB2R + rotB3R + rotB4R;
+) :
+(
+  cs = cos(base + alpha_sm_B1); sn = sin(base + alpha_sm_B1);
+  rotL =  inL*cs - inR*sn;
+  rotR =  inL*sn + inR*cs;
+  L_steered = rotL; R_steered = rotR;
+);
+
+// --- Post: Width (M/S), MonoBelow Side HP, Pan-law, Trim ---
+M2 = (L_steered + R_steered)*inv_sqrt2;
+S2 = (L_steered - R_steered)*inv_sqrt2;
+S2 *= k_width;
+
+// Mono-below on Side
+mb_on ? (
+  y = mb_b0HP*S2 + s_mb_hp1_z1;
+  s_mb_hp1_z1 = mb_b1HP*S2 - mb_a1HP*y + s_mb_hp1_z2;
+  s_mb_hp1_z2 = mb_b2HP*S2 - mb_a2HP*y; tmp=y;
+  y = mb_b0HP*tmp + s_mb_hp2_z1;
+  s_mb_hp2_z1 = mb_b1HP*tmp - mb_a1HP*y + s_mb_hp2_z2;
+  s_mb_hp2_z2 = mb_b2HP*tmp - mb_a2HP*y;
+  S2 = y;
+);
+
+// back to L/R
+procL = (M2 + S2)*inv_sqrt2;
+procR = (M2 - S2)*inv_sqrt2;
+
+// Pan-law comp (approx from displayed single-band az — fine for UI feel)
+az_disp_rad = (multi_on ? (disp_az_B2_deg * $pi/180) : (disp_az_deg * $pi/180));
+az_norm_sm += (1 - exp(-1/(srate*0.06))) * (min(1, abs(az_disp_rad)/(pi*0.5)) - az_norm_sm);
+g_plaw = panlaw_center_gain + (1 - panlaw_center_gain) * az_norm_sm;
+procL *= g_plaw; procR *= g_plaw;
+
+// Trim
+procL *= g_lin; procR *= g_lin;
+
+// Write out
+spl0 = procL;
+spl1 = procR;
+
+// --- Meters (pre-lookahead signal) ---
+accOutL2 += procL*procL; accOutR2 += procR*procR; accOutLR += procL*procR; meter_count += 1;
+(meter_count >= meter_samples_per_refresh || meter_count >= srate) ?
+(
+  meanL2 = accOutL2 / max(1, meter_count);
+  meanR2 = accOutR2 / max(1, meter_count);
+  rmsLdB = (meanL2 > eps) ? (10*log(meanL2)/log(10)) : -120;
+  rmsRdB = (meanR2 > eps) ? (10*log(meanR2)/log(10)) : -120;
+
+  denom = sqrt(max(eps, accOutL2*accOutR2));
+  rho_raw = (denom > eps) ? (accOutLR/denom) : 0;
+  rho_raw = min(1, max(-1, rho_raw));
+
+  y_rmsL += a_meters * (rmsLdB - y_rmsL);
+  y_rmsR += a_meters * (rmsRdB - y_rmsR);
+  y_rho  += a_meters * (rho_raw - y_rho);
+
+  meter_rmsL = y_rmsL; meter_rmsR = y_rmsR; meter_rho = y_rho;
+  accOutL2=accOutR2=accOutLR=0; meter_count=0;
+);
+
+// For UI display
+alpha_show_deg = (multi_on ? (alpha_sm_B2*180/$pi) : (alpha_sm_B1*180/$pi));
+
+//------------------------------------------------------------
+// UI (compact)
+//------------------------------------------------------------
+@gfx 640 260
+gfx_set(0.09,0.09,0.1,1); gfx_rect(0,0,gfx_w,gfx_h);
+gfx_set(0.85,0.85,0.9,1);
+gfx_x=12; gfx_y=10; gfx_printf("CUCO ReCenter — Stage 4.0 (Simple)");
+
+gfx_y=32; gfx_x=12;
+gfx_printf("Center: %.0f%%   Speed: %.2f   Width: %.0f%%   Mono Bass: %s",
+  slider1, slider2, slider3, (slider4>0 ? sprintf(#,"%.0f Hz", slider4) : "Off"));
+
+gfx_y=50; gfx_x=12;
+gfx_printf("Mode: %s   Target: %.1f°   Freeze: %s   Out: %.1f dB",
+  slider5 ? "Multi(4)" : "Single", slider6, slider7 ? "ON" : "OFF", slider8);
+
+// meters
+bar_w=280; bar_h=14;
+
+gfx_set(0.2,0.6,0.9,1);
+gfx_x=12; gfx_y=74; gfx_rect(gfx_x,gfx_y,bar_w,bar_h,0);
+normL=db_to_norm(meter_rmsL); gfx_rect(gfx_x,gfx_y,bar_w*normL,bar_h,1);
+gfx_set(0.7,0.7,0.8,1); gfx_x=12+bar_w+8; gfx_y=74; gfx_printf("L: %.1f dBFS", meter_rmsL);
+
+gfx_set(0.9,0.5,0.2,1);
+gfx_x=12; gfx_y=94; gfx_rect(gfx_x,gfx_y,bar_w,bar_h,0);
+normR=db_to_norm(meter_rmsR); gfx_rect(gfx_x,gfx_y,bar_w*normR,bar_h,1);
+gfx_set(0.7,0.7,0.8,1); gfx_x=12+bar_w+8; gfx_y=94; gfx_printf("R: %.1f dBFS", meter_rmsR);
+
+gfx_set(0.8,0.8,0.85,1);
+gfx_x=12; gfx_y=118; gfx_printf("Correlation");
+gfx_x=12; gfx_y=134; gfx_rect(12,134,bar_w,10,0);
+rho_len=(meter_rho*0.5+0.5)*bar_w;
+col_pos=max(0,meter_rho); col_neg=max(0,-meter_rho);
+gfx_set(0.2*(1-col_pos)+0.8*col_neg,0.8*col_pos,0.2*(1-col_pos),1);
+gfx_rect(12,134,rho_len,10,1);
+
+gfx_set(0.85,0.85,0.9,1);
+gfx_x=12; gfx_y=156;
+multi_on ? (
+  gfx_printf("Band Azimuths: B1 %.1f°  B2 %.1f°  B3 %.1f°  B4 %.1f°   Corr: %.1f°   Conf: %.2f",
+    disp_az_B1_deg, disp_az_B2_deg, disp_az_B3_deg, disp_az_B4_deg, alpha_show_deg, conf_raw_disp);
+) : (
+  gfx_printf("Azimuth: %.1f°   Corr: %.1f°   Conf: %.2f", disp_az_deg, alpha_show_deg, conf_raw_disp);
+);
+

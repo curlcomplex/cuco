@@ -1,0 +1,160 @@
+desc: CUCO Sweep
+//tags: phaser allpass cuco gestural
+//author: CUCO
+
+// Six-stage all-pass cascade. No internal modulation — every shape is
+// driven by REAPER envelopes (Keyframe, Random Walk). This plugin is the
+// instrument; the script is the player.
+
+// All sliders hidden from REAPER's auto-strip via `-` prefix —
+// the @gfx canvas is the only UI. Sliders remain fully automatable.
+slider1:1000<50,8000,1>-Center (Hz)
+slider2:0<-1,1,0.001>-Spread
+slider3:0<-0.95,0.95,0.001>-Feedback
+slider4:0<0,1,0.001>-Stereo
+slider5:0.5<0,1,0.001>-Mix
+
+in_pin:left
+in_pin:right
+out_pin:left
+out_pin:right
+
+import Tukan/ui-lib.jsfx-inc
+import CUCO/lib/cuco_theme.jsfx-inc
+import CUCO/lib/cuco_widgets.jsfx-inc
+
+@init
+N_STAGES = 6;
+
+// --- smoothed parameter targets / current values
+ctr_t = ctr_v = 1000;
+spr_t = spr_v = 0;
+fb_t  = fb_v  = 0;
+ste_t = ste_v = 0;
+mix_t = mix_v = 0.5;
+
+// One-pole smoother coefficient (~10 ms time constant).
+function set_smooth_tc(ms) (
+  smooth_a = 1 - exp(-1 / (ms * 0.001 * srate));
+);
+set_smooth_tc(10);
+
+// All-pass state per channel per stage.
+//   y[n] = a*x[n] + x[n-1] - a*y[n-1]
+//   a    = (tan(pi*f/sr) - 1) / (tan(pi*f/sr) + 1)
+//
+// Memory layout note: ui-lib reserves m[0..~2700] for its drawconfig and
+// screen stack, plus image buffers. We park CUCO's @sample state well
+// above any plausible UI-side reservation.
+CUCO_MEM_BASE = 1048576;  // 2^20
+xL        = CUCO_MEM_BASE;
+yL        = CUCO_MEM_BASE +   N_STAGES;
+xR        = CUCO_MEM_BASE + 2*N_STAGES;
+yR        = CUCO_MEM_BASE + 3*N_STAGES;
+stage_log = CUCO_MEM_BASE + 4*N_STAGES;
+
+// Zero our buffers explicitly (they live above any auto-init range).
+memset(CUCO_MEM_BASE, 0, 5*N_STAGES);
+
+// Feedback memory.
+fbL = 0;
+fbR = 0;
+function rebuild_stage_offsets() local(i, t) (
+  i = 0;
+  loop(N_STAGES,
+    t = (N_STAGES > 1) ? (i / (N_STAGES - 1) * 2 - 1) : 0;
+    stage_log[i] = t;
+    i += 1;
+  );
+);
+rebuild_stage_offsets();
+
+@slider
+ctr_t = slider1;
+spr_t = slider2;
+fb_t  = slider3;
+ste_t = slider4;
+mix_t = slider5;
+
+@sample
+// Smooth parameters.
+ctr_v += (ctr_t - ctr_v) * smooth_a;
+spr_v += (spr_t - spr_v) * smooth_a;
+fb_v  += (fb_t  - fb_v ) * smooth_a;
+ste_v += (ste_t - ste_v) * smooth_a;
+mix_v += (mix_t - mix_v) * smooth_a;
+
+inL = spl0;
+inR = spl1;
+
+// Stereo detune: R offset by ste_v octaves relative to L.
+stereo_mul = exp(0.6931472 * ste_v);
+
+// L cascade.
+sigL = inL + fb_v * fbL;
+i = 0;
+loop(N_STAGES,
+  fL = ctr_v * exp(0.6931472 * spr_v * stage_log[i] * 2);
+  fL = max(20, min(srate * 0.49, fL));
+  w  = tan($pi * fL / srate);
+  a  = (w - 1) / (w + 1);
+  xprev = xL[i];
+  yprev = yL[i];
+  yout  = a * sigL + xprev - a * yprev;
+  xL[i] = sigL;
+  yL[i] = yout;
+  sigL  = yout;
+  i += 1;
+);
+fbL = sigL;
+
+// R cascade.
+sigR = inR + fb_v * fbR;
+i = 0;
+loop(N_STAGES,
+  fR = ctr_v * exp(0.6931472 * spr_v * stage_log[i] * 2) * stereo_mul;
+  fR = max(20, min(srate * 0.49, fR));
+  w  = tan($pi * fR / srate);
+  a  = (w - 1) / (w + 1);
+  xprev = xR[i];
+  yprev = yR[i];
+  yout  = a * sigR + xprev - a * yprev;
+  xR[i] = sigR;
+  yR[i] = yout;
+  sigR  = yout;
+  i += 1;
+);
+fbR = sigR;
+
+// Notch phaser: dry + wet sums create the notches at all-pass break freqs.
+spl0 = inL + sigL * mix_v;
+spl1 = inR + sigR * mix_v;
+
+@gfx 520 160
+cuco_ui_begin(520, 160);
+
+  // Title bar.
+  ui_split_top(28);
+    ui_pad(8, 0);
+    cuco_title("CUCO Sweep");
+    cuco_font_micro();
+    cuco_col_text_faint();
+    ui_align(1, 0.5);
+    ui_text("6-stage allpass · automation-driven");
+  ui_pop();
+
+  // 1px divider under title.
+  ui_split_top(1);
+    cuco_col_border();
+    ui_fill();
+  ui_pop();
+
+  // Knob row — five equal cells.
+  ui_pad(8, 8);
+  ui_split_leftratio(0.2);   cuco_knob_log    (slider1,    50, 8000, 1000, "Center",   "Hz"); ui_pop();
+  ui_split_leftratio(0.25);  cuco_knob_bipolar(slider2,    -1,    1,    0, "Spread",   "");   ui_pop();
+  ui_split_leftratio(0.3333); cuco_knob_bipolar(slider3, -0.95, 0.95,    0, "Feedback", "");   ui_pop();
+  ui_split_leftratio(0.5);   cuco_knob        (slider4,     0,    1,    0, "Stereo",   "");   ui_pop();
+                             cuco_knob        (slider5,     0,    1,  0.5, "Mix",      "");
+
+cuco_ui_end();

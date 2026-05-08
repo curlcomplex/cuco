@@ -1,0 +1,496 @@
+desc: CUCO ReCenter v5
+//tags: stereo center recenter cuco automation gestural
+//author: CUCO
+//
+// Merge of CUCO ReCenter (Stage 4.0 "Simple") and CUCO ReCenter Spec
+// (Stage 4.3) — BOOM ReCenter feature parity, plus envelope-friendly
+// audio-rate guardrails for use under Keyframe / Random Walk automation.
+//
+// All parameters are sliders and smoothed (slew-limited) so any envelope
+// shape — fast random walks included — produces clean audible motion.
+
+// All sliders prefixed with `-` so REAPER's auto-rendered parameter
+// strip stays empty and the FX window collapses to the @gfx canvas.
+// They remain fully automatable and visible in REAPER's Param menu.
+slider1:100<0,200,1>-Intensity (%)
+slider2:30<0,100,0.1>-Response (%)
+slider3:0<0,10000,1>-Mono Filter (Hz)
+slider4:0<0,60,0.1>-Lookahead (ms)
+slider5:0<-90,90,0.1>-Angle (deg)
+slider6:100<-200,200,1>-Width (%)
+slider7:0<0,1,1{Off,On}>-MS Input
+slider8:1<0,1,1{Off,On}>-Multiband
+slider9:0<0,1,1{Run,Freeze}>-Freeze
+slider10:0<-24,24,0.1>-Output (dB)
+slider11:0<0,1,1{Off,On}>-Show IN
+slider12:1<0,1,1{Off,On}>-Show OUT
+
+in_pin:left
+in_pin:right
+out_pin:left
+out_pin:right
+
+import Tukan/ui-lib.jsfx-inc
+import CUCO/lib/cuco_theme.jsfx-inc
+import CUCO/lib/cuco_widgets.jsfx-inc
+
+@init
+
+// ====================================================================
+// Constants
+// ====================================================================
+inv_sqrt2 = 0.7071067811865475;
+tiny = exp(log(10) * -24);
+eps  = exp(log(10) * -12);
+
+f1 = 150; f2 = 1200; f3 = 5500;             // multiband splits (BOOM)
+Qbw = 0.7071067811865475;                   // Butterworth Q
+
+// ====================================================================
+// Memory layout — everything ABOVE ui-lib's reservation (m[0..~2940]).
+// CUCO_MEM_BASE = 2^20 = 1048576 keeps us safely clear.
+// ====================================================================
+CUCO_MEM_BASE = 1048576;
+
+// Biquad indexed states (z1[id], z2[id]) — 16 IDs total.
+z1 = CUCO_MEM_BASE;
+z2 = CUCO_MEM_BASE + 32;
+
+FID_L_LP1 = 0;  FID_L_HP1 = 1;  FID_R_LP1 = 2;  FID_R_HP1 = 3;
+FID_L_LP2 = 4;  FID_L_HP2 = 5;  FID_R_LP2 = 6;  FID_R_HP2 = 7;
+FID_L_LP3 = 8;  FID_L_HP3 = 9;  FID_R_LP3 = 10; FID_R_HP3 = 11;
+FID_M_LP1 = 12; FID_M_LP2 = 13; FID_S_LP1 = 14; FID_S_LP2 = 15;
+
+// Lookahead ring buffer (interleaved L,R), large enough for max 60 ms @ 96k.
+buf      = CUCO_MEM_BASE + 64;
+BUF_LEN  = 32768;                            // 2^15 frames; 2x samples
+N_frames = 0;
+w_frames = 0;
+r_frames = 0;
+look_samps = 0;
+
+// Stereo Monitor histograms (32 bins of accumulated energy each).
+N_BINS    = 32;
+hist_in   = CUCO_MEM_BASE + 64 + BUF_LEN * 2;
+hist_out  = hist_in + N_BINS;
+hist_peak = 1;                               // running normalization peak
+
+// Zero-init all CUCO memory (defensive — m[] is zero by default but
+// helpful if the plugin reloads mid-session).
+memset(CUCO_MEM_BASE, 0, 64 + BUF_LEN * 2 + N_BINS * 2);
+
+// ====================================================================
+// State (named globals — separate from m[])
+// ====================================================================
+g_lin = 1;
+k_width = 1;
+alpha_sm     = 0;
+alpha_target = 0;
+alpha_prev   = 0;
+
+az = 0;
+disp_az_deg = 0;
+
+ana_N = 0;
+ana_n = 0;
+EL = ER = C = 0;
+EL1 = ER1 = C1 = 0;
+EL2 = ER2 = C2 = 0;
+EL3 = ER3 = C3 = 0;
+EL4 = ER4 = C4 = 0;
+
+// Filter coeffs (filled in @slider).
+b0lp1 = b1lp1 = b2lp1 = a1lp1 = a2lp1 = 0;
+b0hp1 = b1hp1 = b2hp1 = a1hp1 = a2hp1 = 0;
+b0lp2 = b1lp2 = b2lp2 = a1lp2 = a2lp2 = 0;
+b0hp2 = b1hp2 = b2hp2 = a1hp2 = a2hp2 = 0;
+b0lp3 = b1lp3 = b2lp3 = a1lp3 = a2lp3 = 0;
+b0hp3 = b1hp3 = b2hp3 = a1hp3 = a2hp3 = 0;
+mf_b0 = mf_b1 = mf_b2 = mf_a1 = mf_a2 = 0;
+
+// Smoothing.
+a_resp = 0.005;
+deadband_rad = 0.25 * $pi / 180;
+
+// Slider mirrors (set in @slider).
+k_raw = 1;
+k_eff = 1;
+mf_fc = 0;
+mb_on = 1;
+ms_in = 0;
+freeze_on = 0;
+target_ang = 0;
+look_ms = 0;
+resp_pct = 0.3;
+
+// Histogram update throttle (every Nth sample).
+hist_throttle = 8;
+hist_count = 0;
+hist_decay_per_frame = 0.94;
+
+// ====================================================================
+// Helpers
+// ====================================================================
+function biquad_tick_id(x, b0, b1, b2, a1, a2, id) local(y) (
+  y = b0 * x + z1[id];
+  z1[id] = b1 * x - a1 * y + z2[id];
+  z2[id] = b2 * x - a2 * y;
+  y;
+);
+
+// Build RBJ biquad (LP or HP) coefficients into the global b/a vars.
+// Caller copies them into the named coeff slots afterward. Helper-style
+// so the @slider block stays readable.
+function rbj_biquad(fc, q, kind) local(w0, cw, sw, alpha, a0) (
+  w0 = 2 * $pi * fc / srate;
+  cw = cos(w0);
+  sw = sin(w0);
+  alpha = sw / (2 * q);
+  a0 = 1 + alpha;
+  // kind: 0 = LP, 1 = HP
+  kind == 0 ? (
+    rbj_b0 = (1 - cw) / 2 / a0;
+    rbj_b1 = (1 - cw)     / a0;
+    rbj_b2 = (1 - cw) / 2 / a0;
+  ) : (
+    rbj_b0 =  (1 + cw) / 2 / a0;
+    rbj_b1 = -(1 + cw)     / a0;
+    rbj_b2 =  (1 + cw) / 2 / a0;
+  );
+  rbj_a1 = -2 * cw / a0;
+  rbj_a2 = (1 - alpha) / a0;
+);
+
+// ====================================================================
+// @slider — recompute on parameter change. Cheap; no allocations.
+// ====================================================================
+@slider
+k_raw    = slider1 * 0.01;                     // 0..2
+k_eff    = 1 - exp(-0.9 * k_raw);              // ~0.59 at 100%, ~0.75 at 200%
+resp_pct = max(0, min(1, slider2 * 0.01));
+mf_fc    = max(0, slider3);
+look_ms  = max(0, slider4);
+target_ang = slider5 * $pi / 180;              // aim point in radians
+k_width  = slider6 * 0.01;                     // -2..2 (inversion via negative)
+ms_in    = slider7 | 0;
+mb_on    = slider8 | 0;
+freeze_on = slider9 | 0;
+g_lin    = 10 ^ (slider10 / 20);
+
+// Response → analysis window length and smoothing time constant.
+resp_ms = 400 - 340 * resp_pct;                // 60..400 ms
+resp_ms < 20 ? resp_ms = 20;
+a_resp = 1 - exp(-1 / (srate * resp_ms * 0.001));
+
+ana_ms = 80 - 50 * resp_pct;                   // 30..80 ms
+ana_ms < 20 ? ana_ms = 20;
+ana_N = max(32, floor(srate * ana_ms * 0.001));
+
+// Crossover coefficients (LR4 = two cascaded Butterworth biquads).
+rbj_biquad(f1, Qbw, 0);
+b0lp1 = rbj_b0; b1lp1 = rbj_b1; b2lp1 = rbj_b2; a1lp1 = rbj_a1; a2lp1 = rbj_a2;
+rbj_biquad(f1, Qbw, 1);
+b0hp1 = rbj_b0; b1hp1 = rbj_b1; b2hp1 = rbj_b2; a1hp1 = rbj_a1; a2hp1 = rbj_a2;
+
+rbj_biquad(f2, Qbw, 0);
+b0lp2 = rbj_b0; b1lp2 = rbj_b1; b2lp2 = rbj_b2; a1lp2 = rbj_a1; a2lp2 = rbj_a2;
+rbj_biquad(f2, Qbw, 1);
+b0hp2 = rbj_b0; b1hp2 = rbj_b1; b2hp2 = rbj_b2; a1hp2 = rbj_a1; a2hp2 = rbj_a2;
+
+rbj_biquad(f3, Qbw, 0);
+b0lp3 = rbj_b0; b1lp3 = rbj_b1; b2lp3 = rbj_b2; a1lp3 = rbj_a1; a2lp3 = rbj_a2;
+rbj_biquad(f3, Qbw, 1);
+b0hp3 = rbj_b0; b1hp3 = rbj_b1; b2hp3 = rbj_b2; a1hp3 = rbj_a1; a2hp3 = rbj_a2;
+
+// Mono Filter coefficients (LR4 LP, applied in M/S domain).
+mf_fc > 0 ? (
+  mf_fc_clamped = min(srate * 0.45, max(20, mf_fc));
+  rbj_biquad(mf_fc_clamped, Qbw, 0);
+  mf_b0 = rbj_b0; mf_b1 = rbj_b1; mf_b2 = rbj_b2;
+  mf_a1 = rbj_a1; mf_a2 = rbj_a2;
+);
+
+// Lookahead and PDC.
+look_samps = floor(srate * look_ms * 0.001);
+N_frames   = max(1024, look_samps + 1024);
+N_frames > BUF_LEN ? N_frames = BUF_LEN;
+w_frames >= N_frames ? w_frames = 0;
+r_frames = w_frames - look_samps;
+r_frames < 0 ? r_frames += N_frames;
+
+pdc_delay  = look_samps;
+pdc_bot_ch = 0;
+pdc_top_ch = 1;
+
+// ====================================================================
+// @sample — DSP and monitor histogram accumulation.
+// ====================================================================
+@sample
+// Denormal guard.
+spl0 += tiny; spl0 -= tiny;
+spl1 += tiny; spl1 -= tiny;
+
+// Optional MS input decode.
+ms_in ? (
+  M_in = spl0;
+  S_in = spl1;
+  L_in = (M_in + S_in) * inv_sqrt2;
+  R_in = (M_in - S_in) * inv_sqrt2;
+) : (
+  L_in = spl0;
+  R_in = spl1;
+);
+
+// ----- Multiband analysis (chained crossovers) -----
+mb_on ? (
+  // Split 1 @ 150 Hz.
+  L_lp1 = biquad_tick_id(L_in, b0lp1, b1lp1, b2lp1, a1lp1, a2lp1, FID_L_LP1);
+  L_hp1 = biquad_tick_id(L_in, b0hp1, b1hp1, b2hp1, a1hp1, a2hp1, FID_L_HP1);
+  R_lp1 = biquad_tick_id(R_in, b0lp1, b1lp1, b2lp1, a1lp1, a2lp1, FID_R_LP1);
+  R_hp1 = biquad_tick_id(R_in, b0hp1, b1hp1, b2hp1, a1hp1, a2hp1, FID_R_HP1);
+  // Split 2 @ 1200 Hz on HP1.
+  L_mid = biquad_tick_id(L_hp1, b0lp2, b1lp2, b2lp2, a1lp2, a2lp2, FID_L_LP2);
+  L_h12 = biquad_tick_id(L_hp1, b0hp2, b1hp2, b2hp2, a1hp2, a2hp2, FID_L_HP2);
+  R_mid = biquad_tick_id(R_hp1, b0lp2, b1lp2, b2lp2, a1lp2, a2lp2, FID_R_LP2);
+  R_h12 = biquad_tick_id(R_hp1, b0hp2, b1hp2, b2hp2, a1hp2, a2hp2, FID_R_HP2);
+  // Split 3 @ 5500 Hz on H12.
+  L_him = biquad_tick_id(L_h12, b0lp3, b1lp3, b2lp3, a1lp3, a2lp3, FID_L_LP3);
+  L_hi  = biquad_tick_id(L_h12, b0hp3, b1hp3, b2hp3, a1hp3, a2hp3, FID_L_HP3);
+  R_him = biquad_tick_id(R_h12, b0lp3, b1lp3, b2lp3, a1lp3, a2lp3, FID_R_LP3);
+  R_hi  = biquad_tick_id(R_h12, b0hp3, b1hp3, b2hp3, a1hp3, a2hp3, FID_R_HP3);
+
+  EL1 += L_lp1 * L_lp1; ER1 += R_lp1 * R_lp1; C1 += L_lp1 * R_lp1;
+  EL2 += L_mid * L_mid; ER2 += R_mid * R_mid; C2 += L_mid * R_mid;
+  EL3 += L_him * L_him; ER3 += R_him * R_him; C3 += L_him * R_him;
+  EL4 += L_hi  * L_hi;  ER4 += R_hi  * R_hi;  C4 += L_hi  * R_hi;
+);
+
+// Fullband stats (always accumulated).
+EL += L_in * L_in;
+ER += R_in * R_in;
+C  += L_in * R_in;
+ana_n += 1;
+
+// Window completion → recompute target angle.
+ana_n >= ana_N ? (
+  az = 0.5 * atan2(ER - EL, 2 * C + eps);
+
+  mb_on ? (
+    denom1 = sqrt(max(eps, EL1 * ER1)); r1 = denom1 > eps ? abs(C1 / denom1) : 0;
+    denom2 = sqrt(max(eps, EL2 * ER2)); r2 = denom2 > eps ? abs(C2 / denom2) : 0;
+    denom3 = sqrt(max(eps, EL3 * ER3)); r3 = denom3 > eps ? abs(C3 / denom3) : 0;
+    denom4 = sqrt(max(eps, EL4 * ER4)); r4 = denom4 > eps ? abs(C4 / denom4) : 0;
+    az1 = 0.5 * atan2(ER1 - EL1, 2 * C1 + eps);
+    az2 = 0.5 * atan2(ER2 - EL2, 2 * C2 + eps);
+    az3 = 0.5 * atan2(ER3 - EL3, 2 * C3 + eps);
+    az4 = 0.5 * atan2(ER4 - EL4, 2 * C4 + eps);
+    e1 = (EL1 + ER1); e2 = (EL2 + ER2); e3 = (EL3 + ER3); e4 = (EL4 + ER4);
+    wsum = e1 * r1 * 0.8 + e2 * r2 * 1.0 + e3 * r3 * 1.1 + e4 * r4 * 0.9 + eps;
+    az_blend = (az1 * e1 * r1 * 0.8
+              + az2 * e2 * r2 * 1.0
+              + az3 * e3 * r3 * 1.1
+              + az4 * e4 * r4 * 0.9) / wsum;
+    az = 0.35 * az + 0.65 * az_blend;
+  );
+
+  // Aim point: pull azimuth TOWARD target_ang (BOOM semantics).
+  // Correction = -k_eff * (az - target). Deadband near the target.
+  err_ang = az - target_ang;
+  alpha_target = -k_eff * err_ang;
+  abs(err_ang) < deadband_rad ? alpha_target = 0;
+
+  disp_az_deg = az * 180 / $pi;
+
+  // Reset analysis accumulators.
+  EL = ER = C = 0;
+  EL1 = ER1 = C1 = 0;
+  EL2 = ER2 = C2 = 0;
+  EL3 = ER3 = C3 = 0;
+  EL4 = ER4 = C4 = 0;
+  ana_n = 0;
+);
+
+// ----- Smoothing with error-adaptive speed and slew limit -----
+freeze_on ? (
+  // Hold current correction; alpha_target ignored.
+  0;
+) : (
+  err   = abs(az - target_ang);
+  a_err = 1 - exp(-err / (5 * $pi / 180));     // speed up beyond ~5° error
+  speed_x = 1 + 1.6 * max(0, k_raw - 1);       // boost when intensity > 100%
+  a_eff = min(0.99, a_resp * speed_x * (0.6 + 0.4 * a_err));
+  alpha_sm += a_eff * (alpha_target - alpha_sm);
+);
+
+// Slew limit (max degrees/second on rotation rate).
+max_deg_per_s = 360 * (0.6 + 0.8 * k_raw);
+max_step = (max_deg_per_s * $pi / 180) / srate;
+d = alpha_sm - alpha_prev;
+d >  max_step ? alpha_sm = alpha_prev + max_step;
+d < -max_step ? alpha_sm = alpha_prev - max_step;
+alpha_prev = alpha_sm;
+
+// Apply rotation. Aim-point semantics: the auto correction already
+// includes target_ang; do NOT add target_ang again as a manual rotation.
+cs = cos(alpha_sm);
+sn = sin(alpha_sm);
+rotL = L_in * cs - R_in * sn;
+rotR = L_in * sn + R_in * cs;
+
+// M/S width (negative k_width inverts the side signal → L/R swap).
+M = (rotL + rotR) * inv_sqrt2;
+S = (rotL - rotR) * inv_sqrt2;
+S *= k_width;
+
+// Mono Filter — remove low Side content (LP4 on S, subtract).
+mf_fc > 0 ? (
+  s1_  = biquad_tick_id(S, mf_b0, mf_b1, mf_b2, mf_a1, mf_a2, FID_S_LP1);
+  S_lo = biquad_tick_id(s1_, mf_b0, mf_b1, mf_b2, mf_a1, mf_a2, FID_S_LP2);
+  S = S - S_lo;
+);
+
+// Back to L/R.
+procL = (M + S) * inv_sqrt2;
+procR = (M - S) * inv_sqrt2;
+
+// Output trim.
+procL *= g_lin;
+procR *= g_lin;
+
+// ----- Lookahead delay (interleaved ring buffer) -----
+look_samps > 0 ? (
+  baseW = w_frames * 2;
+  buf[baseW    ] = procL;
+  buf[baseW + 1] = procR;
+  baseR = r_frames * 2;
+  outL = buf[baseR    ];
+  outR = buf[baseR + 1];
+  w_frames += 1; w_frames >= N_frames ? w_frames = 0;
+  r_frames += 1; r_frames >= N_frames ? r_frames = 0;
+) : (
+  outL = procL;
+  outR = procR;
+);
+
+spl0 = outL;
+spl1 = outR;
+
+// ----- Stereo Monitor histogram accumulation (throttled) -----
+hist_count += 1;
+hist_count >= hist_throttle ? (
+  hist_count = 0;
+  // IN
+  abs_L = abs(L_in); abs_R = abs(R_in);
+  sum_LR = abs_L + abs_R + eps;
+  pan_in = (abs_R - abs_L) / sum_LR;          // -1..+1
+  bin_in = floor((pan_in * 0.5 + 0.5) * N_BINS);
+  bin_in = max(0, min(N_BINS - 1, bin_in));
+  e_in = L_in * L_in + R_in * R_in;
+  hist_in[bin_in] += e_in;
+
+  // OUT (post-processing, post-trim, pre-lookahead).
+  abs_L = abs(procL); abs_R = abs(procR);
+  sum_LR = abs_L + abs_R + eps;
+  pan_out = (abs_R - abs_L) / sum_LR;
+  bin_out = floor((pan_out * 0.5 + 0.5) * N_BINS);
+  bin_out = max(0, min(N_BINS - 1, bin_out));
+  e_out = procL * procL + procR * procR;
+  hist_out[bin_out] += e_out;
+
+  // Track running peak for normalization.
+  hist_in[bin_in]  > hist_peak ? hist_peak = hist_in[bin_in];
+  hist_out[bin_out] > hist_peak ? hist_peak = hist_out[bin_out];
+);
+
+// ====================================================================
+// @gfx — UI
+// ====================================================================
+@gfx 700 360
+cuco_ui_begin(700, 360);
+
+  // Layout uses fixed-pixel row heights so the plugin stays in shape
+  // when the user resizes the FX window. ~336 px of content in 360 default.
+  //   title 24 + div 1 + main 220 + div 1 + sliders 50 + div 1 + bottom 32
+
+  // --- title strip
+  ui_split_top(24);
+    ui_pad(10, 0);
+    cuco_title("CUCO ReCenter v5");
+    cuco_font_micro();
+    cuco_col_text_faint();
+    ui_align(1, 0.5);
+    ui_text("auto-center · BOOM-faithful · automation-friendly");
+  ui_pop();
+
+  ui_split_top(1);
+    cuco_col_border();
+    ui_fill();
+  ui_pop();
+
+  // --- main row: knobs left | monitor center | knobs right (fixed height)
+  ui_split_top(220);
+    ui_pad(7, 7);
+    ui_split_left(125);    // left column fixed width
+      ui_split_topratio(0.5);
+        cuco_knob(slider1, 0, 200, 100, "Intensity", "%");
+      ui_pop();
+      cuco_knob_log(slider3, 0, 10000, 0, "Mono Filter", "Hz");
+    ui_pop();
+    ui_split_right(125);   // right column fixed width
+      ui_split_topratio(0.5);
+        cuco_knob(slider2, 0, 100, 30, "Response", "%");
+      ui_pop();
+      cuco_knob(slider4, 0, 60, 0, "Lookahead", "ms");
+    ui_pop();
+    // remainder: Stereo Monitor
+    cuco_stereo_monitor(hist_in, hist_out, N_BINS, slider11, slider12, hist_peak);
+  ui_pop();
+
+  ui_split_top(1);
+    cuco_col_border();
+    ui_fill();
+  ui_pop();
+
+  // --- Angle and Width sliders
+  ui_split_top(50);
+    ui_pad(12, 5);
+    ui_split_topratio(0.5);
+      ui_pad(0, 2);
+      cuco_hbar(slider5, -90, 90, 0, 0, 1, "Angle", "°");
+    ui_pop();
+    ui_pad(0, 2);
+    cuco_hbar(slider6, -200, 200, 100, 0, 1, "Width", "%");
+  ui_pop();
+
+  ui_split_top(1);
+    cuco_col_border();
+    ui_fill();
+  ui_pop();
+
+  // --- bottom strip: toggles + output bar
+  ui_split_top(32);
+    ui_pad(10, 5);
+    ui_split_left(110);
+      cuco_checkbox(slider7, "MS Input");
+    ui_pop();
+    ui_split_left(110);
+      cuco_checkbox(slider8, "Multiband");
+    ui_pop();
+    ui_split_left(90);
+      cuco_checkbox(slider9, "Freeze");
+    ui_pop();
+    cuco_hbar(slider10, -24, 24, 0, 0, 1, "Output", "dB");
+  ui_pop();
+
+  // --- per-frame histogram decay (must run AFTER monitor draws so the
+  //     current frame is rendered at full intensity)
+  hist_decay_idx = 0;
+  loop(N_BINS,
+    hist_in[hist_decay_idx]  *= hist_decay_per_frame;
+    hist_out[hist_decay_idx] *= hist_decay_per_frame;
+    hist_decay_idx += 1;
+  );
+  hist_peak *= 0.995;
+  hist_peak < 1 ? hist_peak = 1;
+
+cuco_ui_end();

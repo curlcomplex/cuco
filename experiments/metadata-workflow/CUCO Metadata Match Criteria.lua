@@ -1,13 +1,23 @@
 -- @description CUCO Metadata Match (match with BWF and iXML metadata)
 -- @author curl (based on Rodilab)
--- @version 1.1
--- @changelog No modal popups, status at window bottom, robust match insert/take timing
+-- @version 1.2
+-- @changelog
+--   1.2  Adopt CUCO theme; drop obsolete DestroyContext; replace inline color literals with palette tokens.
+--   1.1  No modal popups, status at window bottom, robust match insert/take timing.
 -- @about
 --   Search for matches to audio files in a folder, according to the matching criteria in the BWF and iXML metadata.
 --   Imports matching files into new takes or tracks. Always opens UI, multi-item batch safe.
 
 local r = reaper
 local script_name = "CUCO Metadata Match"
+
+-- Shared CUCO theme module
+local theme = (function()
+  local s = debug.getinfo(1, "S").source:sub(2)
+  local cuco = s:match("(.*/CUCO/)")
+  return dofile(cuco .. "projects/_shared/cuco_imgui_theme.lua")
+end)()
+local COL = theme.COL
 local OS_Win = string.match(r.GetOS(),"Win")
 local OS_Mac = string.match(r.GetOS(),"OSX")
 
@@ -403,9 +413,9 @@ local function ImGuiBody()
   r.ImGui_PushStyleVar(ctx,r.ImGui_StyleVar_FrameRounding(),4.0)
 
   if count_sel_items == 0 then
-    r.ImGui_TextColored(ctx, 0xFF4444FF, "No items selected. Please select items to match.")
+    r.ImGui_TextColored(ctx, COL.danger_hi, "No items selected. Please select items to match.")
   else
-    r.ImGui_Text(ctx, tostring(count_sel_items) .. " items selected.")
+    r.ImGui_TextColored(ctx, COL.muted, tostring(count_sel_items) .. " items selected.")
   end
 
   -- Folder
@@ -485,9 +495,9 @@ local function ImGuiBody()
   -- === BOTTOM STATUS / MESSAGE LINE ===
   r.ImGui_Separator(ctx)
   if match_button == 1 then
-    r.ImGui_TextColored(ctx, 0xAAAAFFFF, "Searching, please wait...")
+    r.ImGui_TextColored(ctx, COL.toggle_hi, "Searching, please wait...")
   elseif status_message then
-    local color = status_message:match("No match") and 0xFF4444FF or 0x44FF44FF
+    local color = status_message:match("No match") and COL.danger_hi or COL.primary_hi
     r.ImGui_TextColored(ctx, color, status_message)
     -- Clear message after 8 seconds
     if r.time_precise() - last_search_tick > 8 then status_message = nil end
@@ -496,9 +506,9 @@ end
 
 local loopcnt = 0
 local function loop()
-  r.ImGui_PushFont(ctx,font)
-  r.ImGui_PushStyleColor(ctx,r.ImGui_Col_WindowBg(),0x333333ff)
-  r.ImGui_PushStyleVar(ctx,r.ImGui_StyleVar_WindowTitleAlign(),0.5,0.5)
+  r.ImGui_PushFont(ctx, font)
+  r.ImGui_PushStyleVar(ctx, r.ImGui_StyleVar_WindowTitleAlign(), 0.5, 0.5)
+  local theme_token = theme.apply(ctx)
 
   if conf.mouse_pos then
     local cur_x, cur_y = r.GetMousePosition()
@@ -511,12 +521,13 @@ local function loop()
 
   local window_flag = r.ImGui_WindowFlags_NoCollapse() | r.ImGui_WindowFlags_NoDocking()
   local visible, open = r.ImGui_Begin(ctx, script_name, true, window_flag)
-  r.ImGui_PopStyleColor(ctx)
   if visible then
     ImGuiBody()
-    if loopcnt == 0 then r.ImGui_SetWindowSize(ctx, 0, 0, nil ) end
+    if loopcnt == 0 then r.ImGui_SetWindowSize(ctx, 0, 0, nil) end
     r.ImGui_End(ctx)
   end
+
+  theme.revert(ctx, theme_token)
   r.ImGui_PopStyleVar(ctx)
   r.ImGui_PopFont(ctx)
   if match_button then
@@ -527,8 +538,8 @@ local function loop()
       match_button = match_button + 1
     end
   end
-  if not open or r.ImGui_IsKeyDown(ctx,27) or close then
-    r.ImGui_DestroyContext(ctx)
+  if not open or r.ImGui_IsKeyDown(ctx, 27) or close then
+    -- Modern ReaImGui: contexts are GC-managed; no explicit DestroyContext.
   else
     r.defer(loop)
   end

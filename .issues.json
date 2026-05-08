@@ -277,15 +277,22 @@
     {
       "id": "T-001",
       "type": "task",
-      "status": "open",
+      "status": "closed",
       "title": "Commit-staging pass for accumulated working-tree changes",
       "description": "Working tree carries Random Walk classifier overhaul, Audiosuite+ v0.6.0 Phase 1, theme retrofits across Keyframe/Metadata Match, EXPERIMENTAL-file rename, and _shared/ untracked. Split into ~5 logical commits per the original handover's recommended split.",
       "tags": [],
       "session": "s327",
       "created_at": "2026-05-07T16:33:01.496Z",
-      "updated_at": "2026-05-07T16:33:01.496Z",
+      "updated_at": "2026-05-08T11:54:06.984Z",
       "properties": {
-        "worktree": "CUCO"
+        "worktree": "CUCO",
+        "notes": [
+          {
+            "at": "2026-05-08T11:54:06.984Z",
+            "session": "s327",
+            "text": "Done in Phase A of T-017 migration: 7 per-project commits (3f17e3b _shared, fbc4d0d keyframe v0.7, 98479cc audiosuite-plus v0.6, ce20447 random-walk v4.0, 50ca90a metadata-workflow v1.2, 1321470 CUCO Archival, 8582ae6 CUCO Import Session Track). Working tree was clean before the migration mv."
+          }
+        ]
       },
       "priority": 2,
       "ready": true

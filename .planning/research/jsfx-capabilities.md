@@ -202,4 +202,4 @@ primitives and read `mouse_*` yourself, or use a library
 
 - Reference: <https://www.reaper.fm/sdk/js/js.php>
 - Graphics reference: <https://www.reaper.fm/sdk/js/gfx.php>
-- Local example using file I/O + drag-drop: `CUCO_plugins/CUCO Additive`
+- Local example using file I/O + drag-drop: `Effects/Experimental/CUCO Additive`

@@ -1,7 +1,8 @@
 --[[
 @description CUCO Keyframer — snapshot and recall FX parameter states with envelope writing
 @author      felixtatic
-@version     0.6.0
+@version     0.7.0
+@provides    ../_shared/cuco_imgui_theme.lua
 @about
   Capture FX parameter states across selected tracks (or take FX on items),
   recall them safely with envelope bypass, and write them as automation
@@ -16,6 +17,14 @@
 
 @dependencies ReaImGui
 @license      MIT
+@changelog
+  0.7.0
+    - Add envelope shape picker (per-shape icons) for time-selection writes.
+    - Adopt shared CUCO theme module (palette + button helpers).
+    - ReaPack distribution: script-relative dofile resolver, bundled theme
+      via @provides.
+  0.6.0
+    - Initial public preview.
 ]]--
 
 local SCRIPT_VERSION = "0.7.0"
@@ -547,10 +556,11 @@ end
 local ctx = reaper.ImGui_CreateContext('CUCO Keyframe')
 
 -- Shared CUCO theme module: palette + apply/revert + button helpers + segmented + tooltip.
+-- Resolver is script-relative (works under any ReaPack install location, not just /CUCO/).
 local theme = (function()
   local s = debug.getinfo(1, "S").source:sub(2)
-  local cuco = s:match("(.*/CUCO/)")
-  return dofile(cuco .. "projects/_shared/cuco_imgui_theme.lua")
+  local dir = s:match("(.*[/\\])") or ""
+  return dofile(dir .. "../_shared/cuco_imgui_theme.lua")
 end)()
 local COL       = theme.COL
 local pushBtn   = theme.pushBtn

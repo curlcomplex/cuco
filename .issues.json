@@ -1482,6 +1482,75 @@
       "priority": 2,
       "ready": true,
       "doc_path": ".planning/handovers/2026-05-10-T-043-reapack-import-verify.md"
+    },
+    {
+      "id": "K-006",
+      "type": "knowledge",
+      "status": "open",
+      "title": "Control-driven JSFX architecture (recursive framers → sequencers → processors)",
+      "description": "A subset of the CUCO JSFX suite (opt-in, not house style) follows a recursive control-driven architecture. Three layers — framers (Keyframer, Random Walk, REAPER envelopes, Tidal) generate control data into sliders; sequencers (control-driven JSFX MIDI/CC sources) take slider values → emit MIDI; processors (control-driven JSFX audio effects/generators) take slider values + audio in → emit audio out. The same invariants repeat at every layer: simple, focused, mono-purpose, slider-saturated, automation-receptive. Only the I/O domain changes. JSFX is the right format because every slider is a uniform automation surface, sequencers and processors live on the same FX chain on the same track, and the hidden-slider trick (`-` prefix) gives a clean GUI-only window without sacrificing automation. This is a tagged design pattern — utility/mixing/metering JSFX (ReCenter, Multiband Correlation Meter) are exempt and have their own contracts. See .planning/research/control-driven-jsfx-architecture.md for the full philosophy and SPEC-005/SPEC-006 for the domain contracts.",
+      "tags": [
+        "jsfx",
+        "architecture",
+        "control-driven",
+        "suite",
+        "philosophy"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-10T19:43:02.764Z",
+      "updated_at": "2026-05-10T19:43:02.764Z",
+      "properties": {
+        "worktree": "CUCO-reaper",
+        "research_doc": ".planning/research/control-driven-jsfx-architecture.md"
+      },
+      "priority": 2
+    },
+    {
+      "id": "SPEC-005",
+      "type": "specification",
+      "status": "open",
+      "title": "control-driven-jsfx-processors",
+      "description": "v0.1 draft. Defines the contract a CUCO JSFX must satisfy to be classified as a control-driven processor: an audio-in/audio-out (or audio-out generator) unit whose entire musical surface is a slider-saturated, automation-receptive transfer function. Opt-in criteria: audio I/O, mono-purpose, slider-complete, gestural. Required conventions cover sliders (hidden `-` prefix, bipolar where natural, <32 sliders), DSP discipline (allocate in @init, smooth in @sample, no per-sample FFTs), GUI (build on geraintluff/jsfx-ui-lib + cuco_theme + cuco_widgets, ui_automate for all slider writes), and persistence (@serialize for non-slider state, 32-bit float caveat). Currently-conforming candidates: CUCO Sweep (needs audit). Currently-exempt: ReCenter, Multiband Correlation Meter, JM_ana_Correlation, ABLevelMatching_Modified, CUCO Additive. See .planning/specs/control-driven-jsfx-processors.md.",
+      "tags": [
+        "jsfx",
+        "spec",
+        "processors",
+        "control-driven",
+        "suite"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-10T19:43:02.773Z",
+      "updated_at": "2026-05-10T19:43:02.773Z",
+      "properties": {
+        "worktree": "CUCO-reaper",
+        "spec_doc": ".planning/specs/control-driven-jsfx-processors.md",
+        "version": "0.1-draft"
+      },
+      "priority": 2
+    },
+    {
+      "id": "SPEC-006",
+      "type": "specification",
+      "status": "open",
+      "title": "control-driven-jsfx-sequencers",
+      "description": "v0.1 draft. Defines the contract a CUCO JSFX must satisfy to be classified as a control-driven sequencer: a MIDI/CC source whose entire sequence shape (steps, density, swing, scale, range, gate) is encoded as sliders that are themselves automation-receptive — so framers (Keyframer, Random Walk, envelope lanes) can modulate the sequence in real time. Sequencers are peers to Keyframer/Random Walk in the framer hierarchy but live in the FX chain rather than ReaScript. Opt-in criteria: MIDI/CC out via midisend, sequence shape is sliders, framer-receptive (modulation while playing without glitch), transport-synced via play_position/beat_position. Required conventions cover MIDI emission (sample-accurate offset, declared MIDI stance — replace/passthrough/merge/filter, note-off discipline, no stuck notes), sliders (hidden `-` prefix, bipolar where natural, slider-budget strategies — generative vs compact-step-storage vs per-step-automation-lane), step storage exception (bulk step data may live in @serialize if non-modulatable + integer-quantized), transport sync (drive from beat_position not sample counters, loop-aware), GUI (must visualize current sequence state). Currently in suite: none — no JSFX sequencer exists yet, this SPEC defines the contract for future work. See .planning/specs/control-driven-jsfx-sequencers.md.",
+      "tags": [
+        "jsfx",
+        "spec",
+        "sequencers",
+        "control-driven",
+        "suite",
+        "midi"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-10T19:43:02.780Z",
+      "updated_at": "2026-05-10T19:43:02.780Z",
+      "properties": {
+        "worktree": "CUCO-reaper",
+        "spec_doc": ".planning/specs/control-driven-jsfx-sequencers.md",
+        "version": "0.1-draft"
+      },
+      "priority": 2
     }
   ],
   "edges": [
@@ -2113,6 +2182,20 @@
       "source": "T-043",
       "target": "M-004",
       "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_mp06k2o4d00e",
+      "source": "SPEC-005",
+      "target": "K-006",
+      "type": "relates_to",
+      "properties": {}
+    },
+    {
+      "id": "ie_mp06k2ob1zon",
+      "source": "SPEC-006",
+      "target": "K-006",
+      "type": "relates_to",
       "properties": {}
     }
   ]

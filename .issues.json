@@ -1458,6 +1458,30 @@
         "worktree": "CUCO-reaper"
       },
       "priority": 4
+    },
+    {
+      "id": "T-043",
+      "type": "task",
+      "status": "open",
+      "title": "Verify ReaPack import in fresh REAPER (T-021 steps 6-7)",
+      "description": "",
+      "tags": [
+        "reapack",
+        "verification",
+        "publication"
+      ],
+      "session": "s327",
+      "created_at": "2026-05-10T17:52:24.205Z",
+      "updated_at": "2026-05-10T17:52:48.322Z",
+      "properties": {
+        "worktree": "CUCO-reaper",
+        "handover_pending": true,
+        "handover_doc": ".planning/handovers/2026-05-10-T-043-reapack-import-verify.md",
+        "handover_session": "s328"
+      },
+      "priority": 2,
+      "ready": true,
+      "doc_path": ".planning/handovers/2026-05-10-T-043-reapack-import-verify.md"
     }
   ],
   "edges": [
@@ -2061,6 +2085,34 @@
       "source": "B-006",
       "target": "F-014",
       "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mp02lsba5q73",
+      "source": "T-043",
+      "target": "M-001",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mp02lsbhijuk",
+      "source": "T-043",
+      "target": "M-004",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mp02lsbov1t4",
+      "source": "T-043",
+      "target": "M-001",
+      "type": "blocks",
+      "properties": {}
+    },
+    {
+      "id": "ie_mp02lsbvelag",
+      "source": "T-043",
+      "target": "M-004",
+      "type": "blocks",
       "properties": {}
     }
   ]

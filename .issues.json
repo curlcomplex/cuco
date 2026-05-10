@@ -1064,9 +1064,19 @@
       ],
       "session": "s327",
       "created_at": "2026-05-08T18:32:17.557Z",
-      "updated_at": "2026-05-08T18:32:17.557Z",
+      "updated_at": "2026-05-10T17:29:11.550Z",
       "properties": {
-        "worktree": "CUCO-reaper"
+        "worktree": "CUCO-reaper",
+        "handover_pending": true,
+        "handover_doc": ".planning/handovers/2026-05-10-T-026-events-refactor-verify.md",
+        "handover_session": "s328",
+        "notes": [
+          {
+            "at": "2026-05-10T17:29:11.550Z",
+            "session": "s327",
+            "text": "Refactor committed in 09b5835 — events[] closure-owned, terminal write pass via write_events_to_midi. UNVERIFIED in REAPER; byte-identical hash check is the gating step before close. See handover doc."
+          }
+        ]
       },
       "priority": 2,
       "ready": true

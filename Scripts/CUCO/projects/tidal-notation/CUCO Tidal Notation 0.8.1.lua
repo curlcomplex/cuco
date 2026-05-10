@@ -276,6 +276,13 @@ local function insert_notes(take,pitches,sQN,eQN,vel)
   local sPPQ=reaper.MIDI_GetPPQPosFromProjQN(take,sQN); local ePPQ=reaper.MIDI_GetPPQPosFromProjQN(take,eQN)
   for _,m in ipairs(pitches) do reaper.MIDI_InsertNote(take,false,false,sPPQ,ePPQ,0,m,vel or 96,false) end
 end
+local function write_events_to_midi(take, events)
+  for _,ev in ipairs(events) do
+    local sPPQ = reaper.MIDI_GetPPQPosFromProjQN(take, ev.sQN)
+    local ePPQ = reaper.MIDI_GetPPQPosFromProjQN(take, ev.eQN)
+    reaper.MIDI_InsertNote(take, false, false, sPPQ, ePPQ, ev.ch or 0, ev.pitch, ev.vel or 96, false)
+  end
+end
 local function compute_step_qn_or_fallback(take, stepQN_opt, step_count)
   if stepQN_opt then return stepQN_opt end
   step_count=math.max(1, tonumber(step_count) or 1)
@@ -287,6 +294,11 @@ end
 -- Executor builder (supports write/plan; recursive groups; repeats; PLAN tracing)
 -------------------------------------------------------------------------------
 local function make_executor(take, default_pitch, last_voices, voice_current, mode, recorder, trace)
+  -- Phase 0: closure-owned event list (write-mode intermediate; one record per emitted note)
+  local events = {}
+  local function emit_event(pitch, sQN, eQN)
+    events[#events+1] = { pitch=pitch, sQN=sQN, eQN=eQN, vel=96, ch=0, attrs={} }
+  end
   -- Anchor pitch for top-level inherit; set by real notes only (not by x)
   local anchor_pitch = nil
   -- Phase 7: anchor voices (baked chord/group) for external x / x±N
@@ -310,7 +322,7 @@ local function make_executor(take, default_pitch, last_voices, voice_current, mo
   local function flush_voice(i)
     local blk=voice_current[i]; if blk then
       if mode=="plan" then dlog("PLAN close v%d %d %.3f→%.3f", i, blk.pitch, blk.startQN, blk.endQN) end
-      if mode=="write" then insert_notes(take,{blk.pitch},blk.startQN,blk.endQN,96) else rec_emit(i,blk.pitch,blk.startQN,blk.endQN) end
+      if mode=="write" then emit_event(blk.pitch, blk.startQN, blk.endQN) else rec_emit(i,blk.pitch,blk.startQN,blk.endQN) end
       voice_current[i]=nil
     end
   end
@@ -318,7 +330,7 @@ local function make_executor(take, default_pitch, last_voices, voice_current, mo
     for i,blk in pairs(voice_current) do
       if blk then
         if mode=="plan" then dlog("PLAN close v%d %d %.3f→%.3f", i, blk.pitch, blk.startQN, blk.endQN) end
-        if mode=="write" then insert_notes(take,{blk.pitch},blk.startQN,blk.endQN,96) else rec_emit(i,blk.pitch,blk.startQN,blk.endQN) end
+        if mode=="write" then emit_event(blk.pitch, blk.startQN, blk.endQN) else rec_emit(i,blk.pitch,blk.startQN,blk.endQN) end
         voice_current[i]=nil
       end
     end
@@ -544,7 +556,7 @@ local function make_executor(take, default_pitch, last_voices, voice_current, mo
     end
   end
 
-  return exec_window
+  return exec_window, events, flush_all
 end
 
 -------------------------------------------------------------------------------
@@ -765,12 +777,13 @@ local function process_notation_step24(take, name)
   clear_take(take)
   do
     local last_voices, voice_current = {}, {}
-    local exec = make_executor(take, default_pitch, last_voices, voice_current, "write", nil, false)
+    local step_exec, events, flush_all = make_executor(take, default_pitch, last_voices, voice_current, "write", nil, false)
     for k, tok in ipairs(tokens) do
       local sQN = itemStartQN + (k-1)*stepQN; local eQN = sQN + stepQN
-      exec(tok, sQN, eQN, 0)
+      step_exec(tok, sQN, eQN, 0)
     end
-    for i,blk in pairs(voice_current) do insert_notes(take, { blk.pitch }, blk.startQN, blk.endQN, 96); voice_current[i]=nil end
+    flush_all()
+    write_events_to_midi(take, events)
   end
   reaper.MIDI_Sort(take)
 

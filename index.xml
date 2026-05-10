@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<index version="1" name="CUCO - REAPER Scripts" commit="163dba1ac6c6034a4cddc87c5479d8aebd9f9b73">
+  <category name="Scripts/CUCO/projects/keyframe">
+    <reapack name="CUCO Keyframer.lua" type="script" desc="CUCO Keyframer — snapshot and recall FX parameter states with envelope writing">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Capture FX parameter states across selected tracks (or take FX on items), recall them safely with envelope bypass, and write them as automation envelope points \u8212- at the cursor, or across a time selection.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Per-parameter checkboxes scope what gets recalled/written. Recall is a two-stage preview: first click overrides envelopes and applies the snapshot, second click cancels. Selection changes auto-cancel.\par}
+{\pard \ql \f0 \sa180 \li0 \fi0 Snapshots persist per-project (saved into the .rpp via project ExtState), so they survive REAPER restarts.\par}
+}
+]]></description>
+      </metadata>
+      <version name="0.7.0" author="felixtatic" time="2026-05-08T12:10:53Z">
+        <source main="main">https://github.com/curlcomplex/cuco/raw/bf9e167869655a17ab4b9bec32fa9afd22b6dfa5/Scripts/CUCO/projects/keyframe/CUCO%20Keyframer.lua</source>
+        <source file="../_shared/cuco_imgui_theme.lua">https://github.com/curlcomplex/cuco/raw/bf9e167869655a17ab4b9bec32fa9afd22b6dfa5/Scripts/CUCO/projects/_shared/cuco_imgui_theme.lua</source>
+      </version>
+    </reapack>
+  </category>
+  <category name="Scripts/CUCO/projects/random-walk">
+    <reapack name="CUCO Random Walk.lua" type="script" desc="CUCO Random Walk — Advanced parameter automation with smart grouping and multiple iterations">
+      <metadata>
+        <description><![CDATA[{\rtf1\ansi\deff0{\fonttbl{\f0 \fswiss Helvetica;}{\f1 \fmodern Courier;}}
+{\colortbl;\red255\green0\blue0;\red0\green0\blue255;}
+\widowctrl\hyphauto
+
+{\pard \ql \f0 \sa180 \li0 \fi0 Advanced random-walk automation system with intelligent parameter grouping. Features: FX-specific parameter groups, multiple iterations, render-to-takes, settings persistence. Uses REAL parameter values with smart exclusion based on actual loaded plugins.\par}
+}
+]]></description>
+      </metadata>
+      <version name="4.0.0" author="curl+tony" time="2026-05-08T15:05:41Z">
+        <changelog><![CDATA[4.0.0  UI overhaul: themed surfaces, bottom-fixed footer, inline blacklist editors (no more modal popups), flexible-height window, fixed Begin/End contract for current ReaImGui.
+3.0.0  Major update: Added FX list with smart parameter grouping, iterative processing, render-to-takes, settings persistence
+2.0.1  Fix: use reaper.ImGui_* API directly (no nil table); added ReaImGui presence guard.
+2.0.0  First GUI: sliders, write button + show-env toggle, 3 exclude preset toggles.]]></changelog>
+        <source main="main">https://github.com/curlcomplex/cuco/raw/163dba1ac6c6034a4cddc87c5479d8aebd9f9b73/Scripts/CUCO/projects/random-walk/CUCO%20Random%20Walk.lua</source>
+        <source file="cuco_imgui_theme.lua">https://github.com/curlcomplex/cuco/raw/163dba1ac6c6034a4cddc87c5479d8aebd9f9b73/Scripts/CUCO/projects/_shared/cuco_imgui_theme.lua</source>
+      </version>
+    </reapack>
+  </category>
+</index>

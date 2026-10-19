@@ -1555,6 +1555,42 @@
         "version": "0.1-draft"
       },
       "priority": 2
+    },
+    {
+      "id": "F-015",
+      "type": "feature",
+      "status": "open",
+      "title": "Dialogue Prep — RX De-crackle + HPF + setting-E clip gain, one command",
+      "description": "Dialogue Prep: one-command dialogue cleanup + clip-gain levelling for lav dialogue, codified from the 2026-10-19 Check This EP3/EP4 mix (Felix approved \"setting E\" by ear on both episodes).\n\nLocation: Scripts/CUCO/projects/dialogue-prep/. Driver: `python3 dialogue_prep.py --project <tab substring> --tracks 5,9`.\n\nPipeline (each REAPER step writes DONE/ABORT; driver stops on first problem):\n1. Dump active unmuted clips on the given tracks (pos, len, offset, chanmode, source).\n2. Temp tab: one track per clip with the source region +-5 s handles (same chanmode), RX 11 De-crackle per take.\n3. Set De-crackle Quality High / Strength 4 during one muted playback (params are ignored unless the plugin is processing).\n4. Render via action 40361 (apply take FX, mono) into <project>/Media/Dialogue RX.\n5. Python: verify zero lag vs source (cross-correlation), ffmpeg 40 Hz 2-pole HPF -> <name>_RX_<tag>-NN.wav.\n6. Add each RX file as the active take (offset = handle, chanmode 0), original take kept underneath.\n7. Plan setting E (cut-only line + item-gain boost to -26.9 dBFS speech median; slow ceiling p50, strength 0.4, glides 0.4/0.06 s; fast peak/resonance layer; RDP 0.6 dB) and write item gain + take volume envelope.\n\nFixes over the session scratch version: no hard-coded paths, clips < 0.5 s borrow the nearest same-track clip's gain (planner crashed on them), no separate full-file _rx_pass session.\n\nVerify: rerun on a stripped copy of EP3 and reproduce the session's per-clip item gain / point counts.",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-10-19T17:33:48.035Z",
+      "updated_at": "2026-10-19T17:47:43.136Z",
+      "properties": {
+        "worktree": "CUCO-reaper",
+        "notes": [
+          {
+            "at": "2026-10-19T17:47:43.136Z",
+            "session": "s327",
+            "text": "Implemented in Scripts/CUCO/projects/dialogue-prep/. Verified end to end on a stripped copy of the EP3 session: all 15 clips reproduced the hand-run result exactly (same item gains, identical envelope points) and the cleaned audio was bit-identical (md5 of PCM). Self-checks: tests/test_dialogue_prep.py (cut-only line, hot burst caught, fragment gain rule). Runtime about 5 min for 15 clips / 110 s of dialogue."
+          }
+        ]
+      },
+      "priority": 2
+    },
+    {
+      "id": "K-007",
+      "type": "knowledge",
+      "status": "open",
+      "title": "RX 11 De-crackle only accepts parameter changes while processing",
+      "description": "RX 11 De-crackle (VST3) ignores parameter changes made while it is idle: TakeFX_SetParamNormalized returns true but the value does not stick. Set params while the take is actually processing (e.g. muted playback, set 0.5 s in, read back with TakeFX_GetFormattedParamValue). Param 0 Quality: normalized 0 / 1/3 / 1 = Low / Medium / High. Param 1 Strength: range 1-10, normalized (s - 1) / 9. Found 2026-10-19 (Check This EP3/4); implemented in projects/dialogue-prep/steps/dp_rx_params.lua (F-015).",
+      "tags": [],
+      "session": "s327",
+      "created_at": "2026-10-19T17:47:42.536Z",
+      "updated_at": "2026-10-19T17:47:42.536Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      }
     }
   ],
   "edges": [
@@ -2199,6 +2235,13 @@
       "id": "ie_mp06k2ob1zon",
       "source": "SPEC-006",
       "target": "K-006",
+      "type": "relates_to",
+      "properties": {}
+    },
+    {
+      "id": "ie_mvfjrr9i",
+      "source": "K-007",
+      "target": "F-015",
       "type": "relates_to",
       "properties": {}
     }

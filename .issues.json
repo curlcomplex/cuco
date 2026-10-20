@@ -1591,6 +1591,69 @@
       "properties": {
         "worktree": "CUCO-reaper"
       }
+    },
+    {
+      "id": "F-016",
+      "type": "feature",
+      "status": "open",
+      "title": "Post pipeline — AAF to mix-ready session (Check This roadmap)",
+      "description": "",
+      "tags": [
+        "post",
+        "check-this"
+      ],
+      "session": "s327",
+      "created_at": "2026-10-20T12:53:57.741Z",
+      "updated_at": "2026-10-20T12:53:57.741Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      }
+    },
+    {
+      "id": "F-017",
+      "type": "feature",
+      "status": "open",
+      "title": "FX buss island envelope — 4 points around each island",
+      "description": "",
+      "tags": [
+        "post",
+        "check-this"
+      ],
+      "session": "s327",
+      "created_at": "2026-10-20T12:53:57.773Z",
+      "updated_at": "2026-10-20T12:53:57.773Z",
+      "properties": {
+        "worktree": "CUCO-reaper"
+      }
+    },
+    {
+      "id": "F-018",
+      "type": "feature",
+      "status": "done",
+      "title": "Picture-cut markers from the reference video",
+      "description": "",
+      "tags": [
+        "post",
+        "check-this"
+      ],
+      "session": "s327",
+      "created_at": "2026-10-20T12:53:57.804Z",
+      "updated_at": "2026-10-20T15:53:57.066Z",
+      "properties": {
+        "worktree": "CUCO-reaper",
+        "notes": [
+          {
+            "at": "2026-10-20T15:51:25.533Z",
+            "session": "s327",
+            "text": "Plan agreed 2026-10-20 (Felix: 'make the cut marker tool'). projects/cut-markers/cut_markers.py --xml <FCP xmeml> [--video <mp4>] --project <tab substring> [--offset 0] [--clear]. Cuts = frames where the topmost picture clip changes; tracks covering >=90% of the sequence are overlays (grain, backgrounds) and ignored. With --video, ffmpeg scene score at each cut frame: confirmed -> 'CUT', not visible -> 'CUT?' (e.g. same-shot splits, graphics coming in). Stops if XML duration != video duration (catches stale EDL-style mismatches). REAPER step adds markers in one undo block, no save; --clear removes all markers first (regions kept); otherwise stops if CUT markers already exist. Check: synthetic-XML self-test + reproduce today's hand-made EP3/EP4 cutdown lists."
+          },
+          {
+            "at": "2026-10-20T15:53:57.066Z",
+            "session": "s327",
+            "text": "Built: projects/cut-markers (cut_markers.py + cm_place.lua). Rule changed during build: 'topmost clip changes' missed a cut under a graphic (EP3 12.52) and coverage-overlay rule dropped a full-length V1 (EP4); now every clip edge on V1 + non-overlay upper tracks, scene check labels hidden ones CUT?. Verified: reproduces hand-made EP3 (30) and EP4 (26) cutdown lists exactly; REAPER step tested on a throwaway tab (--clear keeps region, rerun without --clear stops)."
+          }
+        ]
+      }
     }
   ],
   "edges": [
@@ -2243,6 +2306,27 @@
       "source": "K-007",
       "target": "F-015",
       "type": "relates_to",
+      "properties": {}
+    },
+    {
+      "id": "ie_mvgopwh5",
+      "source": "F-017",
+      "target": "F-016",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mvgopwki",
+      "source": "F-018",
+      "target": "F-016",
+      "type": "part_of",
+      "properties": {}
+    },
+    {
+      "id": "ie_mvgopwnx",
+      "source": "F-015",
+      "target": "F-016",
+      "type": "part_of",
       "properties": {}
     }
   ]
